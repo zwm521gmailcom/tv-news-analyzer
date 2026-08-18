@@ -9,6 +9,42 @@
 
 ---
 
+## 📸 界面预览
+
+### 🏠 看板（首页）
+
+![Dashboard](docs/screenshots/01-dashboard.png)
+
+### 📊 数据分析（麦肯锡风格）
+
+![Analytics](docs/screenshots/02-analytics.png)
+
+### 🕒 AI 市场洞察（时间线）
+
+![Timeline](docs/screenshots/03-timeline.png)
+
+### 🗺️ 全球事件地图
+
+![Map](docs/screenshots/04-map.png)
+
+### 🕸️ 关系图谱
+
+![Graph](docs/screenshots/05-graph.png)
+
+### 🌀 3D 图谱（1404 节点 / 723 边）
+
+![3D Graph](docs/screenshots/06-graph3d.png)
+
+### 🛠️ 系统总览
+
+![System](docs/screenshots/07-system.png)
+
+### 💾 数据备份 & 恢复
+
+![Backup](docs/screenshots/08-backup.png)
+
+---
+
 ## ✨ 功能特点
 
 | 模块 | 说明 |
