@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV News — Crypto Dashboard</title>
+<style>
+/* ── Design System: Kraken Dark Adaptation ── */
+:root {
+  --bg-primary:    #0d0e14;
+  --bg-card:       #12131e;
+  --bg-card-hover: #181928;
+  --bg-filter:     #0f1019;
+  --border:        rgba(113,50,245,0.15);
+  --border-card:   rgba(113,50,245,0.12);
+  --purple:        #7132f5;
+  --purple-dark:   #5741d8;
+  --purple-subtle: rgba(113,50,245,0.12);
+  --purple-glow:   rgba(113,50,245,0.25);
+  --green:         #149e61;
+  --green-subtle:  rgba(20,158,97,0.14);
+  --red:           #e84040;
+  --red-subtle:    rgba(232,64,64,0.14);
+  --yellow:        #f5a623;
+  --yellow-subtle: rgba(245,166,35,0.14);
+  --text-primary:  #ffffff;
+  --text-secondary:#9497a9;
+  --text-muted:    #5c5f75;
+  --radius-btn:    12px;
+  --radius-card:   16px;
+  --radius-badge:  6px;
+  --shadow-card:   0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
+  --shadow-glow:   0 0 0 1px var(--purple), 0 4px 24px var(--purple-glow);
+  --font-display:  'IBM Plex Sans', Helvetica, Arial, sans-serif;
+  --font-ui:      'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ── Top Bar ── */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(13,14,20,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.logo {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-display); font-size: 18px; font-weight: 700;
+  letter-spacing: -0.5px; color: var(--text-primary);
+}
+.logo-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--purple) 0%, var(--purple-dark) 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.live-badge {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--green-subtle); border: 1px solid rgba(20,158,97,0.3);
+  border-radius: 20px; padding: 3px 8px;
+  font-size: 11px; font-weight: 600; color: var(--green);
+  letter-spacing: 0.3px;
+}
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:0.5; transform:scale(0.75); }
+}
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.clock { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.refresh-btn {
+  background: var(--purple-subtle); border: 1px solid var(--border);
+  color: var(--purple); border-radius: var(--radius-btn);
+  padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.refresh-btn:hover { background: var(--purple); color: #fff; }
+.nav-links { display: flex; gap: 4px; }
+.nav-link { padding: 6px 14px; border-radius: 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; transition: all 0.2s; }
+.nav-link:hover { background: var(--purple-subtle); color: var(--purple); }
+.nav-link.active { background: var(--purple-subtle); color: var(--purple); }
+
+/* ── Stats Bar ── */
+.stats-bar {
+  display: flex; gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.stat-item {
+  flex: 1; background: var(--bg-primary);
+  padding: 10px 20px;
+  display: flex; flex-direction: column; align-items: center;
+  transition: background 0.2s; cursor: default;
+}
+.stat-item:hover { background: var(--bg-card); }
+.stat-num {
+  font-size: 22px; font-weight: 700;
+  font-family: var(--font-display); letter-spacing: -0.5px;
+  color: var(--text-primary);
+}
+.stat-num.purple { color: var(--purple); }
+.stat-num.green  { color: var(--green); }
+.stat-num.yellow { color: var(--yellow); }
+.stat-label { font-size: 11px; color: var(--text-muted); font-weight: 500; margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ── Filter Bar ── */
+.filter-bar {
+  padding: 12px 24px;
+  background: var(--bg-filter);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.filter-group { display: flex; align-items: center; gap: 6px; }
+.filter-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.chip {
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border); cursor: pointer;
+  background: transparent; color: var(--text-secondary);
+  transition: all 0.15s; white-space: nowrap;
+}
+.chip:hover { border-color: var(--purple); color: var(--purple); }
+.chip.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+.chip.market-crypto.active  { background: #f7931a; border-color: #f7931a; }
+.chip.market-stock.active   { background: var(--purple); border-color: var(--purple); }
+.chip.market-forex.active   { background: #0ea5e9; border-color: #0ea5e9; }
+.chip.market-futures.active { background: var(--yellow); border-color: var(--yellow); color: #000; }
+.chip.market-index.active   { background: var(--green); border-color: var(--green); }
+.filter-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.search-wrap { flex: 1; min-width: 160px; max-width: 280px; position: relative; }
+.search-input {
+  width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  border-radius: var(--radius-btn); padding: 6px 12px 6px 32px;
+  color: var(--text-primary); font-size: 13px; outline: none;
+  transition: border-color 0.2s;
+}
+.search-input::placeholder { color: var(--text-muted); }
+.search-input:focus { border-color: var(--purple); }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px; }
+.hours-select {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  border-radius: var(--radius-btn); padding: 5px 10px;
+  color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  outline: none;
+}
+.hours-select:focus { border-color: var(--purple); }
+
+/* ── Main Content ── */
+.main { padding: 20px 24px; }
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-title { font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+.total-count { font-size: 12px; color: var(--text-muted); }
+
+/* ── News Grid ── */
+.news-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+/* ── News Card ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--text-muted);
+  border-radius: 3px 0 0 3px;
+}
+.card.urgency-3::before { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.card.urgency-2::before { background: var(--yellow); }
+.card.urgency-1::before { background: var(--text-muted); }
+.card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(113,50,245,0.35);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+.card.new-card {
+  animation: card-appear 0.4s ease-out;
+  border-color: rgba(113,50,245,0.5);
+}
+@keyframes card-appear {
+  from { opacity: 0; transform: translateY(-8px); border-color: var(--purple); }
+  to   { opacity: 1; transform: translateY(0);    border-color: var(--border-card); }
+}
+
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.card-badges { display: flex; gap: 4px; flex-wrap: wrap; flex-shrink: 0; }
+.badge {
+  padding: 2px 7px; border-radius: var(--radius-badge);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase;
+}
+.badge-flash  { background: rgba(245,166,35,0.2); color: var(--yellow); border: 1px solid rgba(245,166,35,0.3); }
+.badge-en     { background: var(--purple-subtle); color: var(--purple); }
+.badge-zh     { background: rgba(20,158,97,0.15); color: var(--green); }
+.badge-market { background: rgba(255,255,255,0.06); color: var(--text-secondary); }
+.badge-market.crypto  { background: rgba(247,147,26,0.15); color: #f7931a; }
+.badge-market.stock   { background: var(--purple-subtle); color: var(--purple); }
+.badge-market.forex   { background: rgba(14,165,233,0.15); color: #38bdf8; }
+.badge-market.futures { background: var(--yellow-subtle); color: var(--yellow); }
+.badge-market.index   { background: var(--green-subtle); color: var(--green); }
+.badge-market.economic{ background: rgba(255,255,255,0.06); color: #c084fc; }
+
+.card-title {
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  color: var(--text-primary); margin-bottom: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-desc {
+  font-size: 12px; color: var(--text-muted); line-height: 1.4; margin-top: 6px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.card-source { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+.card-source span { color: var(--text-secondary); }
+.card-time { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.card-symbols { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+.sym-tag {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  background: rgba(255,255,255,0.05); color: var(--text-muted); font-weight: 500;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ── Loading / Empty ── */
+.loading-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.skeleton-card {
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  border-radius: var(--radius-card); padding: 16px; height: 140px;
+}
+.skeleton { background: rgba(255,255,255,0.05); border-radius: 4px; }
+.skeleton.title  { height: 16px; width: 85%; margin-bottom: 8px; }
+.skeleton.sub    { height: 14px; width: 65%; margin-bottom: 16px; }
+.skeleton.meta   { height: 12px; width: 45%; }
+.skeleton-anim { animation: shimmer 1.5s ease-in-out infinite; }
+@keyframes shimmer {
+  0%   { opacity: 0.4; }
+  50%  { opacity: 0.8; }
+  100% { opacity: 0.4; }
+}
+.empty-state {
+  text-align: center; padding: 60px 20px; color: var(--text-muted);
+}
+.empty-icon { font-size: 40px; margin-bottom: 12px; }
+.empty-text { font-size: 14px; }
+
+/* ── Scroll to Top ── */
+.scroll-top {
+  position: fixed; bottom: 24px; right: 24px;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--purple); color: #fff;
+  border: none; cursor: pointer; font-size: 18px;
+  display: none; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px var(--purple-glow);
+  transition: all 0.2s;
+}
+.scroll-top:hover { background: var(--purple-dark); transform: translateY(-2px); }
+.scroll-top.visible { display: flex; }
+
+/* ── New items toast ── */
+.toast {
+  position: fixed; top: 72px; left: 50%; transform: translateX(-50%) translateY(-20px);
+  background: var(--purple); color: #fff;
+  padding: 8px 20px; border-radius: 20px;
+  font-size: 13px; font-weight: 600;
+  box-shadow: 0 4px 20px var(--purple-glow);
+  opacity: 0; pointer-events: none;
+  transition: all 0.3s;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── Load More ── */
+.load-more-wrap { text-align: center; padding: 24px 0; }
+.load-more-btn {
+  background: var(--purple-subtle); border: 1px solid var(--border);
+  color: var(--purple); border-radius: var(--radius-btn);
+  padding: 10px 28px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.load-more-btn:hover { background: var(--purple); color: #fff; }
+
+/* ── Article Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 16px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  overflow-y: auto;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--bg-card);
+  border: 1px solid rgba(113,50,245,0.3);
+  border-radius: 20px;
+  width: 100%; max-width: 720px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(113,50,245,0.2);
+  transform: translateY(16px);
+  transition: transform 0.25s;
+  flex-shrink: 0;
+}
+.modal-overlay.open .modal { transform: translateY(0); }
+.modal-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.modal-urgency-bar {
+  width: 4px; border-radius: 4px; flex-shrink: 0; margin-top: 3px;
+  align-self: stretch; min-height: 20px;
+}
+.modal-urgency-bar.urgency-3 { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.modal-urgency-bar.urgency-2 { background: var(--yellow); }
+.modal-urgency-bar.urgency-1 { background: var(--text-muted); }
+.modal-title-wrap { flex: 1; }
+.modal-title {
+  font-size: 17px; font-weight: 700; line-height: 1.45;
+  color: var(--text-primary); margin-bottom: 8px;
+}
+.modal-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+.modal-close {
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  color: var(--text-secondary); border-radius: 8px;
+  width: 32px; height: 32px; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.modal-close:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.modal-meta {
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  font-size: 12px; color: var(--text-muted);
+}
+.modal-meta .provider { color: var(--text-secondary); font-weight: 500; }
+.modal-meta .time { font-variant-numeric: tabular-nums; }
+.modal-syms { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+.modal-body {
+  padding: 20px 24px;
+  font-size: 14px; line-height: 1.75; color: #c8cad6;
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 60vh; overflow-y: auto;
+}
+.modal-body::-webkit-scrollbar { width: 5px; }
+.modal-body::-webkit-scrollbar-track { background: transparent; }
+.modal-body::-webkit-scrollbar-thumb { background: rgba(113,50,245,0.4); border-radius: 3px; }
+.modal-empty {
+  padding: 32px 24px; text-align: center;
+  color: var(--text-muted); font-size: 13px;
+}
+.modal-actions {
+  padding: 0 24px 24px;
+  display: flex; justify-content: center; flex-wrap: wrap;
+}
+.modal-link-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 8px 14px; border-radius: 10px;
+  border: 1px solid rgba(113,50,245,0.35);
+  color: #fff; text-decoration: none; font-size: 12px; font-weight: 600;
+  background: linear-gradient(135deg, rgba(113,50,245,0.18), rgba(113,50,245,0.08));
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+}
+.modal-link-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(113,50,245,0.28);
+  border-color: rgba(113,50,245,0.6);
+}
+.modal-loading {
+  padding: 40px 24px; text-align: center;
+  color: var(--text-muted); font-size: 13px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.spinner {
+  width: 16px; height: 16px; border: 2px solid rgba(113,50,245,0.3);
+  border-top-color: var(--purple); border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .topbar { padding: 0 16px; }
+  .filter-bar { padding: 10px 16px; }
+  .main { padding: 16px; }
+  .news-grid { grid-template-columns: 1fr; }
+  .stats-bar { flex-wrap: wrap; }
+  .stat-item { min-width: 33%; }
+  .stat-num { font-size: 18px; }
+}
+</style>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<script defer src="/static/i18n.js"></script>
+<script defer src="/static/shared-ui.js"></script>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-icon">📡</div>
+      TV News
+    </div>
+    <div class="nav-links">
+      <a href="/" class="nav-link active" data-i18n="nav.home">看板</a>
+      <a href="/analytics" class="nav-link" data-i18n="nav.analytics">分析</a>
+      <a href="/timeline" class="nav-link" data-i18n="nav.timeline">洞察</a>
+      <a href="/map" class="nav-link" data-i18n="nav.map">地图</a>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="live-badge"><div class="live-dot"></div><span data-i18n="live">LIVE</span></div>
+    <div class="clock" id="clock">--:--:--</div>
+    <button class="refresh-btn" onclick="loadNews(true)" data-i18n="refresh">↻ 刷新</button>
+  </div>
+</header>
+
+<!-- Stats Bar -->
+<div class="stats-bar" id="statsBar">
+  <div class="stat-item"><div class="stat-num" id="s-total">—</div><div class="stat-label" data-i18n="stats.total">全部</div></div>
+  <div class="stat-item"><div class="stat-num purple" id="s-en">—</div><div class="stat-label" data-i18n="stats.en">英文</div></div>
+  <div class="stat-item"><div class="stat-num green" id="s-zh">—</div><div class="stat-label" data-i18n="stats.zh">中文</div></div>
+  <div class="stat-item"><div class="stat-num" style="color:#f7931a" id="s-crypto">—</div><div class="stat-label" data-i18n="stats.crypto">加密</div></div>
+  <div class="stat-item"><div class="stat-num purple" id="s-stock">—</div><div class="stat-label" data-i18n="stats.stock">股票</div></div>
+  <div class="stat-item"><div class="stat-num" style="color:#38bdf8" id="s-forex">—</div><div class="stat-label" data-i18n="stats.forex">外汇</div></div>
+  <div class="stat-item"><div class="stat-num yellow" id="s-futures">—</div><div class="stat-label" data-i18n="stats.futures">期货</div></div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="filter-group">
+    <span class="filter-label" data-i18n="filter.lang">语言</span>
+    <button class="chip active" data-filter="lang" data-val="" data-i18n="filter.all">全部</button>
+    <button class="chip" data-filter="lang" data-val="en" data-i18n="filter.en_label">英文 EN</button>
+    <button class="chip" data-filter="lang" data-val="zh-Hans" data-i18n="filter.zh_label">中文 ZH</button>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="filter-group">
+    <span class="filter-label" data-i18n="filter.market">市场</span>
+    <button class="chip active" data-filter="market" data-val="" data-i18n="filter.all">全部</button>
+    <button class="chip market-crypto"  data-filter="market" data-val="crypto" data-i18n="filter.crypto">₿ 加密</button>
+    <button class="chip market-stock"   data-filter="market" data-val="stock" data-i18n="filter.stock">📈 股票</button>
+    <button class="chip market-forex"   data-filter="market" data-val="forex" data-i18n="filter.forex">💱 外汇</button>
+    <button class="chip market-futures" data-filter="market" data-val="futures" data-i18n="filter.futures">🛢 期货</button>
+    <button class="chip market-index"   data-filter="market" data-val="index" data-i18n="filter.index">📊 指数</button>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="search-input" type="text" id="searchInput" data-i18n-placeholder="filter.search_ph" placeholder="搜索新闻..." />
+  </div>
+  <select class="hours-select" id="hoursSelect">
+    <option value="1"   data-i18n="filter.hours.1">近1小时</option>
+    <option value="3"   data-i18n="filter.hours.3">近3小时</option>
+    <option value="6"   data-i18n="filter.hours.6">近6小时</option>
+    <option value="24"  selected data-i18n="filter.hours.24">近24小时</option>
+    <option value="48"  data-i18n="filter.hours.48">近48小时</option>
+    <option value="168" data-i18n="filter.hours.168">近7天</option>
+  </select>
+</div>
+
+<!-- Main -->
+<main class="main">
+  <div class="section-header">
+    <div class="section-title" data-i18n="section.latest">最新资讯</div>
+    <div class="total-count" id="totalCount" data-i18n="section.loading">加载中...</div>
+  </div>
+  <div class="news-grid" id="newsGrid">
+    <div class="skeleton-card skeleton-anim"><div class="skeleton title"></div><div class="skeleton sub"></div><div class="skeleton meta"></div></div>
+    <div class="skeleton-card skeleton-anim"><div class="skeleton title"></div><div class="skeleton sub"></div><div class="skeleton meta"></div></div>
+    <div class="skeleton-card skeleton-anim"><div class="skeleton title"></div><div class="skeleton sub"></div><div class="skeleton meta"></div></div>
+  </div>
+  <div class="load-more-wrap" id="loadMoreWrap" style="display:none">
+    <button class="load-more-btn" onclick="loadMore()" data-i18n="section.load_more">加载更多</button>
+  </div>
+</main>
+
+<button class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+<div class="toast" id="toast"></div>
+
+<!-- Article Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="handleOverlayClick(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div class="modal-urgency-bar" id="modalUrgencyBar"></div>
+      <div class="modal-title-wrap">
+        <div class="modal-title" id="modalTitle"></div>
+        <div class="modal-badges" id="modalBadges"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-meta" id="modalMeta"></div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+const state = {
+  lang: '', market: '', q: '', hours: 24,
+  offset: 0, total: 0, loading: false,
+  latestTs: 0,
+  fallbackExpanded: false,
+  refreshMode: (function () {
+    try { return localStorage.getItem('tvnews.refresh') || 'auto'; }
+    catch (e) { return 'auto'; }
+  })(),
+  pollTimer: null,
+};
+const LIMIT = 30;
+
+// ── Clock ──
+function updateClock() {
+  const now = new Date();
+  const locale = (window.I18N && window.I18N.getLang() === 'en') ? 'en-GB' : 'zh-Hans';
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString(locale, {hour12: false});
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ── Time Formatter ──
+function fmtTime(ts) {
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  const t = (k) => (window.I18N ? window.I18N.t(k) : k);
+  if (diff < 60)  return `${diff}${t('card.time.sec')}`;
+  if (diff < 3600) return `${Math.floor(diff/60)}${t('card.time.min')}`;
+  if (diff < 86400) {
+    const h = d.getHours().toString().padStart(2,'0');
+    const m = d.getMinutes().toString().padStart(2,'0');
+    return `${h}:${m}`;
+  }
+  return `${d.getMonth()+1}-${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
+
+// ── Market Colors ──
+function marketLabel(m) {
+  const t = (k) => (window.I18N ? window.I18N.t(k) : k);
+  const isEN = window.I18N && window.I18N.getLang() === 'en';
+  if (isEN) {
+    return ({crypto:'Crypto', stock:'Stocks', forex:'Forex', futures:'Futures',
+             index:'Index', economic:'Macro', unknown:'Other'})[m] || m;
+  }
+  return ({crypto:'加密', stock:'股票', forex:'外汇', futures:'期货',
+           index:'指数', economic:'宏观', unknown:'其他'})[m] || m;
+}
+
+// ── Render Card ──
+function renderCard(item, isNew=false) {
+  const t = (k) => (window.I18N ? window.I18N.t(k) : k);
+  const urgencyClass = `urgency-${item.urgency}`;
+  const flashBadge = item.is_flash ? `<span class="badge badge-flash">${t('card.flash')}</span>` : '';
+  const langBadge = item.lang === 'zh-Hans'
+    ? `<span class="badge badge-zh">${t('card.zh')}</span>`
+    : `<span class="badge badge-en">${t('card.en')}</span>`;
+  const mLabel = marketLabel(item.market);
+  const mClass = item.market || 'unknown';
+  const marketBadge = `<span class="badge badge-market ${mClass}">${mLabel}</span>`;
+
+  const titleHtml = `<div class="card-title">${esc(item.title)}</div>`;
+  const descHtml = item.short_desc
+    ? `<div class="card-desc">${esc(item.short_desc)}</div>` : '';
+
+  const symsHtml = item.symbols.length
+    ? `<div class="card-symbols">${item.symbols.map(s=>`<span class="sym-tag">${esc(s.split(':').pop())}</span>`).join('')}</div>` : '';
+
+  return `
+  <div class="card ${urgencyClass}${isNew?' new-card':''}" data-id="${esc(item.id)}" onclick="openModal(this.dataset.id)">
+    <div class="card-header">
+      <div style="flex:1">${titleHtml}</div>
+      <div class="card-badges">${flashBadge}${langBadge}${marketBadge}</div>
+    </div>
+    ${descHtml}
+    ${symsHtml}
+    <div class="card-footer">
+      <div class="card-source">${t('card.source')} <span>${esc(item.provider)}</span></div>
+      <div class="card-time">${fmtTime(item.published)}</div>
+    </div>
+  </div>`;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function attrEsc(s) {
+  if (!s) return '';
+  return esc(String(s)).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ── Load Stats ──
+async function loadStats() {
+  try {
+    const r = await fetch(`/api/stats?hours=${state.hours}`);
+    const d = await r.json();
+    document.getElementById('s-total').textContent = d.total.toLocaleString();
+    document.getElementById('s-en').textContent    = (d.by_lang['en'] || 0).toLocaleString();
+    document.getElementById('s-zh').textContent    = (d.by_lang['zh-Hans'] || 0).toLocaleString();
+    document.getElementById('s-crypto').textContent  = (d.by_market['crypto'] || 0).toLocaleString();
+    document.getElementById('s-stock').textContent   = (d.by_market['stock'] || 0).toLocaleString();
+    document.getElementById('s-forex').textContent   = (d.by_market['forex'] || 0).toLocaleString();
+    document.getElementById('s-futures').textContent = (d.by_market['futures'] || 0).toLocaleString();
+
+    if (state.latestTs > 0 && d.latest_ts > state.latestTs) {
+      showToast(window.I18N ? window.I18N.t('toast.new') : '🔥 有新消息，已自动更新');
+    }
+    state.latestTs = d.latest_ts;
+  } catch(e) {}
+}
+
+// ── Load News ──
+async function loadNews(reset=false) {
+  if (state.loading) return;
+  if (reset) { state.offset = 0; }
+  state.loading = true;
+
+  const params = new URLSearchParams({
+    hours: state.hours, limit: LIMIT, offset: state.offset,
+    ...(state.lang   ? {lang:   state.lang}   : {}),
+    ...(state.market ? {market: state.market} : {}),
+    ...(state.q      ? {q:      state.q}      : {}),
+  });
+
+  try {
+    const r = await fetch(`/api/news?${params}`);
+    const d = await r.json();
+
+    if (
+      reset &&
+      !state.lang &&
+      !state.market &&
+      !state.q &&
+      state.hours < 168 &&
+      d.total === 0 &&
+      !state.fallbackExpanded
+    ) {
+      state.fallbackExpanded = true;
+      state.hours = 168;
+      const hoursSelect = document.getElementById('hoursSelect');
+      if (hoursSelect) hoursSelect.value = '168';
+      showToast(window.I18N ? window.I18N.t('toast.fallback') : '最近24小时没有数据，已自动切换到近7天');
+      state.loading = false;
+      await loadNews(true);
+      return;
+    }
+
+    state.total  = d.total;
+    state.offset = state.offset + d.items.length;
+
+    const grid = document.getElementById('newsGrid');
+    if (reset) grid.innerHTML = '';
+
+    if (d.items.length === 0 && reset) {
+      const emptyTxt = window.I18N ? window.I18N.t('card.empty') : '暂无符合条件的新闻';
+      grid.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">${emptyTxt}</div></div>`;
+    } else {
+      const isFirst = reset;
+      grid.insertAdjacentHTML('beforeend',
+        d.items.map((item, i) => renderCard(item, isFirst && i < 3)).join('')
+      );
+    }
+
+    const totalTpl = window.I18N ? window.I18N.t('total') : '共 {n} 条，显示 {shown} 条';
+    document.getElementById('totalCount').textContent =
+      totalTpl.replace('{n}', state.total.toLocaleString()).replace('{shown}', state.offset);
+    document.getElementById('loadMoreWrap').style.display =
+      state.offset < state.total ? 'block' : 'none';
+
+    loadStats();
+  } catch(e) {
+    console.error(e);
+  } finally {
+    state.loading = false;
+  }
+}
+
+function loadMore() { loadNews(false); }
+
+// ── Auto Refresh: 增量轮询（只追加新卡片，不重载 grid）──
+async function pollForNewItems() {
+  if (state.loading) return;
+  if (state.latestTs === 0) return; // 等首次 loadNews 完成
+  try {
+    const params = new URLSearchParams({ hours: 1, limit: LIMIT });
+    if (state.lang)   params.set('lang',   state.lang);
+    if (state.market) params.set('market', state.market);
+    const r = await fetch(`/api/news?${params}`);
+    const d = await r.json();
+    // 客户端过滤：published 大于本地记录的 latestTs
+    const baseline = state.latestTs || 0;
+    const newItems = d.items.filter((item) => item.published > baseline);
+    if (newItems.length > 0) {
+      const grid = document.getElementById('newsGrid');
+      // newItems 是按 published 降序的；插入时反转让最新在顶部
+      const html = newItems.reverse().map((item) => renderCard(item, true)).join('');
+      grid.insertAdjacentHTML('afterbegin', html);
+      state.latestTs = newItems[0].published;
+      state.total    = d.total;
+      state.offset   = Math.min(state.offset + newItems.length, state.total);
+      const totalTpl = window.I18N ? window.I18N.t('total') : '共 {n} 条，显示 {shown} 条';
+      document.getElementById('totalCount').textContent =
+        totalTpl.replace('{n}', state.total.toLocaleString()).replace('{shown}', state.offset);
+      showToast(window.I18N ? window.I18N.t('toast.new') : '🔥 有新消息，已自动更新');
+    }
+  } catch (e) {
+    console.error('pollForNewItems failed', e);
+  }
+}
+
+function startAutoRefresh() {
+  if (state.pollTimer) return;
+  state.pollTimer = setInterval(pollForNewItems, 30000);
+  // 立即跑一次（页面刚开时和从手动切回自动时）
+  pollForNewItems();
+}
+
+function stopAutoRefresh() {
+  if (state.pollTimer) {
+    clearInterval(state.pollTimer);
+    state.pollTimer = null;
+  }
+}
+
+function applyRefreshMode(mode) {
+  state.refreshMode = mode;
+  if (mode === 'auto') {
+    startAutoRefresh();
+  } else {
+    stopAutoRefresh();
+  }
+}
+
+// ── Toast ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Filters ──
+document.querySelectorAll('[data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const filter = btn.dataset.filter;
+    const val    = btn.dataset.val;
+    state.fallbackExpanded = false;
+    document.querySelectorAll(`[data-filter="${filter}"]`)
+      .forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state[filter] = val;
+    state.offset = 0;
+    loadNews(true);
+  });
+});
+
+// ── Search ──
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    state.fallbackExpanded = false;
+    state.q = e.target.value.trim();
+    state.offset = 0;
+    loadNews(true);
+  }, 400);
+});
+
+// ── Hours ──
+document.getElementById('hoursSelect').addEventListener('change', e => {
+  state.fallbackExpanded = false;
+  state.hours = parseInt(e.target.value);
+  state.offset = 0;
+  loadNews(true);
+});
+
+// ── Scroll to top ──
+window.addEventListener('scroll', () => {
+  document.getElementById('scrollTop').classList.toggle('visible', window.scrollY > 400);
+});
+
+// ── Auto Refresh（被刷新模式切换器接管）──
+// 历史：原本是 setInterval(() => loadNews(true), 30000)（全量重载导致闪烁）
+// 现在：增量模式 — 只追加新条目，不重载 grid
+// applyRefreshMode() 由 shared-ui.js 派发的 refresh:mode-changed 事件触发
+document.addEventListener('refresh:mode-changed', (e) => {
+  applyRefreshMode(e.detail.mode);
+});
+
+// 首次启动：等首次 loadNews 完成（确保 state.latestTs 已被 loadStats 设置），
+// 再根据当前模式决定
+loadNews(true).finally(() => applyRefreshMode(state.refreshMode));
+
+// ── Modal ──
+function openModal(newsId) {
+  const t = (k) => (window.I18N ? window.I18N.t(k) : k);
+  const overlay = document.getElementById('modalOverlay');
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  document.getElementById('modalTitle').textContent = t('modal.loading');
+  document.getElementById('modalBadges').innerHTML = '';
+  document.getElementById('modalMeta').innerHTML = '';
+  document.getElementById('modalContent').innerHTML =
+    `<div class="modal-loading"><div class="spinner"></div>${t('modal.loading_body')}</div>`;
+  document.getElementById('modalUrgencyBar').className = 'modal-urgency-bar';
+
+  fetch(`/api/news_detail?id=${encodeURIComponent(newsId)}`)
+    .then(r => r.json())
+    .then(d => renderModal(d))
+    .catch(() => {
+      document.getElementById('modalContent').innerHTML =
+        `<div class="modal-empty">${t('modal.error')}</div>`;
+    });
+}
+
+function renderModal(d) {
+  const t = (k) => (window.I18N ? window.I18N.t(k) : k);
+  document.getElementById('modalUrgencyBar').className =
+    `modal-urgency-bar urgency-${d.urgency}`;
+  document.getElementById('modalTitle').textContent = d.title || '';
+
+  const flashBadge = d.is_flash ? `<span class="badge badge-flash">${t('card.flash')}</span>` : '';
+  const langBadge  = d.lang === 'zh-Hans'
+    ? `<span class="badge badge-zh">${t('card.zh')}</span>`
+    : `<span class="badge badge-en">${t('card.en')}</span>`;
+  const mClass = d.market || 'unknown';
+  const mLabel = marketLabel(d.market);
+  const marketBadge = `<span class="badge badge-market ${mClass}">${mLabel}</span>`;
+  document.getElementById('modalBadges').innerHTML = flashBadge + langBadge + marketBadge;
+
+  const timeStr = fmtTimeFull(d.published);
+  const symsHtml = d.symbols && d.symbols.length
+    ? `<div class="modal-syms">${d.symbols.map(s =>
+        `<span class="sym-tag">${esc(s.split(':').pop())}</span>`).join('')}</div>` : '';
+  document.getElementById('modalMeta').innerHTML =
+    `<span class="provider">${esc(d.provider)}</span>
+     <span class="time">${timeStr}</span>
+     ${symsHtml}`;
+
+  const contentEl = document.getElementById('modalContent');
+  const body = d.story_body && d.story_body.trim().length > 10 ? d.story_body.trim() : null;
+  const desc = d.short_desc || null;
+  const sourceHref = d.link || (d.story_path ? `https://cn.tradingview.com${d.story_path}` : '');
+  const sourceLabel = d.link ? t('modal.open_source') : t('modal.open_page');
+  const sourceAction = sourceHref
+    ? `<div class="modal-actions"><a class="modal-link-btn" href="${attrEsc(sourceHref)}" target="_blank" rel="noopener noreferrer">${esc(sourceLabel)}</a></div>`
+    : '';
+
+  if (body) {
+    contentEl.innerHTML = `<div class="modal-body">${esc(body)}</div>${sourceAction}`;
+  } else if (desc) {
+    contentEl.innerHTML = `<div class="modal-body" style="color:var(--text-muted)">${esc(desc)}</div>${sourceAction}`;
+  } else {
+    contentEl.innerHTML = `<div class="modal-empty">${t('modal.empty')}</div>${sourceAction}`;
+  }
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+function fmtTimeFull(ts) {
+  const d = new Date(ts * 1000);
+  const locale = (window.I18N && window.I18N.getLang() === 'en') ? 'en-GB' : 'zh-Hans';
+  return d.toLocaleString(locale, {
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false
+  });
+}
+
+// ── i18n 切换后重渲染动态内容（卡片 lang badge + market badge + 翻页按钮等）──
+document.addEventListener('i18n:changed', () => {
+  updateClock();
+  loadNews(true);
+});
+
+// ── Init ──
+loadNews(true);
+</script>
+</body>
+</html>

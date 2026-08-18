@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV News — Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg-primary:    #0d0e14;
+  --bg-card:       #12131e;
+  --bg-card-2:     #161724;
+  --border:        rgba(113,50,245,0.14);
+  --purple:        #7132f5;
+  --purple-dark:   #5741d8;
+  --purple-subtle: rgba(113,50,245,0.1);
+  --green:         #149e61;
+  --red:           #e84040;
+  --yellow:        #f5a623;
+  --blue:          #38bdf8;
+  --orange:        #f7931a;
+  --text-primary:  #ffffff;
+  --text-secondary:#9497a9;
+  --text-muted:    #5c5f75;
+  --radius:        16px;
+  --radius-sm:     10px;
+  --font:          'IBM Plex Sans', Helvetica, Arial, sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg-primary); color:var(--text-primary); font-family:var(--font); font-size:14px; }
+
+/* ── Top Bar ── */
+.topbar {
+  position:sticky; top:0; z-index:100;
+  background:rgba(13,14,20,0.94); backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  padding:0 28px; height:56px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.topbar-left { display:flex; align-items:center; gap:16px; }
+.logo { display:flex; align-items:center; gap:8px; font-size:17px; font-weight:700; letter-spacing:-0.4px; }
+.logo-icon { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,var(--purple),var(--purple-dark)); display:flex; align-items:center; justify-content:center; font-size:15px; }
+.page-title { font-size:13px; color:var(--text-muted); padding-left:16px; border-left:1px solid var(--border); }
+.topbar-right { display:flex; align-items:center; gap:12px; }
+.back-btn { background:var(--purple-subtle); border:1px solid var(--border); color:var(--purple); border-radius:10px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; text-decoration:none; }
+.hours-select { background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; padding:5px 10px; color:var(--text-secondary); font-size:12px; cursor:pointer; outline:none; }
+.nav-links { display:flex; gap:4px; }
+.nav-link { padding:6px 14px; border-radius:12px; font-size:13px; font-weight:500; color:var(--text-secondary); text-decoration:none; transition:all 0.2s; }
+.nav-link:hover { background:var(--purple-subtle); color:var(--purple); }
+.nav-link.active { background:var(--purple-subtle); color:var(--purple); }
+.live-badge { display:flex; align-items:center; gap:5px; background:var(--green-subtle); border:1px solid rgba(20,158,97,0.3); border-radius:20px; padding:3px 8px; font-size:11px; font-weight:600; color:var(--green); }
+.live-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse-dot 1.5s ease-in-out infinite; }
+@keyframes pulse-dot { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.75); } }
+
+/* ── Page Layout ── */
+.page { padding:24px 28px; max-width:1600px; margin:0 auto; }
+
+/* ── Section Header (McKinsey style) ── */
+.section-header {
+  display:flex; align-items:flex-end; justify-content:space-between;
+  margin-bottom:20px; padding-bottom:12px;
+  border-bottom:2px solid var(--purple);
+}
+.section-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-secondary); }
+.section-note  { font-size:11px; color:var(--text-muted); }
+
+/* ── KPI Row ── */
+.kpi-row { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:28px; }
+.kpi-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:16px 18px;
+  border-top:3px solid var(--border);
+  transition:border-top-color 0.2s;
+}
+.kpi-card.purple { border-top-color:var(--purple); }
+.kpi-card.green  { border-top-color:var(--green); }
+.kpi-card.orange { border-top-color:var(--orange); }
+.kpi-card.yellow { border-top-color:var(--yellow); }
+.kpi-card.blue   { border-top-color:var(--blue); }
+.kpi-card.red    { border-top-color:var(--red); }
+.kpi-value { font-size:28px; font-weight:700; letter-spacing:-1px; line-height:1; margin-bottom:4px; }
+.kpi-label { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px; font-weight:600; }
+.kpi-sub   { font-size:11px; color:var(--text-muted); margin-top:4px; }
+
+/* ── Grid Layouts ── */
+.grid-2   { display:grid; grid-template-columns:1fr 1fr;       gap:16px; margin-bottom:16px; }
+.grid-3   { display:grid; grid-template-columns:1fr 1fr 1fr;   gap:16px; margin-bottom:16px; }
+.grid-1-2 { display:grid; grid-template-columns:1fr 2fr;       gap:16px; margin-bottom:16px; }
+.grid-2-1 { display:grid; grid-template-columns:2fr 1fr;       gap:16px; margin-bottom:16px; }
+
+/* ── Chart Card ── */
+.chart-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:20px 22px;
+}
+.chart-title {
+  font-size:12px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.8px; color:var(--text-secondary); margin-bottom:4px;
+}
+.chart-subtitle { font-size:11px; color:var(--text-muted); margin-bottom:16px; }
+.chart-wrap { position:relative; }
+
+/* ── Insight Box (McKinsey KEY FINDING) ── */
+.insight-box {
+  background:var(--purple-subtle); border-left:3px solid var(--purple);
+  border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+  padding:12px 16px; margin-top:16px;
+}
+.insight-label { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; color:var(--purple); margin-bottom:4px; }
+.insight-text  { font-size:12px; color:var(--text-secondary); line-height:1.5; }
+
+/* ── Ranking Table (McKinsey waterfall style) ── */
+.rank-table { width:100%; }
+.rank-row {
+  display:flex; align-items:center; gap:10px;
+  padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04);
+}
+.rank-row:last-child { border-bottom:none; }
+.rank-num  { font-size:11px; color:var(--text-muted); width:20px; flex-shrink:0; font-weight:700; }
+.rank-name { font-size:13px; color:var(--text-secondary); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rank-bar-wrap { width:120px; flex-shrink:0; height:6px; background:rgba(255,255,255,0.05); border-radius:3px; overflow:hidden; }
+.rank-bar  { height:100%; border-radius:3px; background:var(--purple); transition:width 0.6s ease; }
+.rank-val  { font-size:12px; font-weight:700; color:var(--text-primary); width:36px; text-align:right; flex-shrink:0; }
+
+/* ── Urgency Gauge ── */
+.urgency-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px; }
+.urgency-item { text-align:center; padding:16px 8px; border-radius:var(--radius-sm); border:1px solid var(--border); }
+.urgency-item.u1 { background:rgba(92,95,117,0.12); }
+.urgency-item.u2 { background:rgba(245,166,35,0.08); border-color:rgba(245,166,35,0.2); }
+.urgency-item.u3 { background:rgba(232,64,64,0.08); border-color:rgba(232,64,64,0.2); }
+.urgency-val  { font-size:26px; font-weight:800; letter-spacing:-1px; }
+.urgency-item.u1 .urgency-val { color:var(--text-muted); }
+.urgency-item.u2 .urgency-val { color:var(--yellow); }
+.urgency-item.u3 .urgency-val { color:var(--red); }
+.urgency-name { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px; margin-top:4px; }
+
+/* ── Responsive ── */
+@media (max-width:1024px) {
+  .grid-2,.grid-1-2,.grid-2-1 { grid-template-columns:1fr; }
+  .grid-3 { grid-template-columns:1fr 1fr; }
+  .kpi-row { grid-template-columns:repeat(3,1fr); }
+}
+@media (max-width:640px) {
+  .kpi-row { grid-template-columns:repeat(2,1fr); }
+  .grid-3  { grid-template-columns:1fr; }
+  .page { padding:16px; }
+  .topbar { padding:0 16px; }
+}
+</style>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<script defer src="/static/shared-ui.js"></script>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-icon">📊</div>
+      TV News
+    </div>
+    <div class="nav-links">
+      <a href="/" class="nav-link">看板</a>
+      <a href="/analytics" class="nav-link active">分析</a>
+      <a href="/timeline" class="nav-link">洞察</a>
+      <a href="/map" class="nav-link">地图</a>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <select class="hours-select" id="hoursSelect">
+      <option value="3">近3小时</option>
+      <option value="6">近6小时</option>
+      <option value="24" selected>近24小时</option>
+      <option value="48">近48小时</option>
+      <option value="168">近7天</option>
+    </select>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- KPI Row -->
+  <div style="margin-bottom:28px">
+    <div class="section-header">
+      <div class="section-title">Executive Summary</div>
+      <div class="section-note" id="reportTime">加载中...</div>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi-card purple">
+        <div class="kpi-value" id="k-total">—</div>
+        <div class="kpi-label">总新闻数</div>
+        <div class="kpi-sub" id="k-flash">— 条快讯</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-value" id="k-en">—</div>
+        <div class="kpi-label">英文来源</div>
+        <div class="kpi-sub" id="k-en-pct"></div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-value" id="k-zh">—</div>
+        <div class="kpi-label">中文来源</div>
+        <div class="kpi-sub" id="k-zh-pct"></div>
+      </div>
+      <div class="kpi-card orange">
+        <div class="kpi-value" id="k-crypto">—</div>
+        <div class="kpi-label">加密市场</div>
+        <div class="kpi-sub" id="k-crypto-pct"></div>
+      </div>
+      <div class="kpi-card yellow">
+        <div class="kpi-value" id="k-stock">—</div>
+        <div class="kpi-label">股票市场</div>
+        <div class="kpi-sub" id="k-stock-pct"></div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-value" id="k-high">—</div>
+        <div class="kpi-label">高紧急度</div>
+        <div class="kpi-sub">Urgency = 3</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 1: Timeline + Market Donut -->
+  <div class="section-header">
+    <div class="section-title">News Volume & Market Distribution</div>
+    <div class="section-note">按小时分布 · 市场占比</div>
+  </div>
+  <div class="grid-2-1" style="margin-bottom:28px">
+    <div class="chart-card">
+      <div class="chart-title">新闻量时间分布</div>
+      <div class="chart-subtitle">按小时统计（近24小时）</div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="chartTimeline"></canvas>
+      </div>
+      <div class="insight-box" id="insightTimeline">
+        <div class="insight-label">Key Finding</div>
+        <div class="insight-text" id="insightTimelineText">加载中...</div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">市场类型分布</div>
+      <div class="chart-subtitle">按市场分类占比</div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="chartMarket"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Top Sources + Urgency -->
+  <div class="section-header">
+    <div class="section-title">Source Analysis & Urgency Breakdown</div>
+    <div class="section-note">来源分布 · 紧急度结构</div>
+  </div>
+  <div class="grid-1-2" style="margin-bottom:28px">
+    <div class="chart-card">
+      <div class="chart-title">紧急度分布</div>
+      <div class="chart-subtitle">低 / 中 / 高 分布结构</div>
+      <div class="urgency-grid" id="urgencyGrid">
+        <div class="urgency-item u1"><div class="urgency-val" id="u1-val">—</div><div class="urgency-name">低</div></div>
+        <div class="urgency-item u2"><div class="urgency-val" id="u2-val">—</div><div class="urgency-name">中</div></div>
+        <div class="urgency-item u3"><div class="urgency-val" id="u3-val">—</div><div class="urgency-name">高</div></div>
+      </div>
+      <div style="margin-top:16px;height:140px">
+        <canvas id="chartUrgency"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top 15 新闻来源</div>
+      <div class="chart-subtitle">按新闻数量排名</div>
+      <div id="sourceRanking" class="rank-table"></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Trading Pairs + Lang × Market -->
+  <div class="section-header">
+    <div class="section-title">Trading Pairs & Language Coverage</div>
+    <div class="section-note">关联交易对 · 语言 × 市场覆盖</div>
+  </div>
+  <div class="grid-2" style="margin-bottom:28px">
+    <div class="chart-card">
+      <div class="chart-title">Top 20 关联交易对</div>
+      <div class="chart-subtitle">出现频次最高的交易对</div>
+      <div id="symbolRanking" class="rank-table"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">语言 × 市场覆盖</div>
+      <div class="chart-subtitle">中英文在各市场的新闻量对比</div>
+      <div class="chart-wrap" style="height:280px">
+        <canvas id="chartLangMarket"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 4: Period Statistics (周/月) -->
+  <div class="section-header">
+    <div class="section-title">Period Statistics</div>
+    <div class="section-note">按 ISO 周 / 年月 聚合新闻量</div>
+  </div>
+  <div class="grid-2">
+    <div class="chart-card">
+      <div class="chart-title">每周新闻量</div>
+      <div class="chart-subtitle">按 ISO 周分桶（全部历史数据）</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="chartWeekly"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">每月新闻量</div>
+      <div class="chart-subtitle">按年月分桶（全部历史数据）</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="chartMonthly"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Translation section removed -->
+
+</div><!-- /page -->
+
+<script>
+// ── Chart.js Global Defaults ──
+Chart.defaults.color           = '#5c5f75';
+Chart.defaults.borderColor     = 'rgba(113,50,245,0.1)';
+Chart.defaults.font.family     = 'IBM Plex Sans, Helvetica, Arial, sans-serif';
+Chart.defaults.font.size       = 11;
+
+const MARKET_COLORS = {
+  stock:'#7132f5', crypto:'#f7931a', forex:'#38bdf8',
+  futures:'#f5a623', index:'#149e61', economic:'#c084fc', unknown:'#5c5f75'
+};
+const MARKET_LABELS = {
+  stock:'股票', crypto:'加密', forex:'外汇',
+  futures:'期货', index:'指数', economic:'宏观', unknown:'其他'
+};
+
+let charts = {};
+let hours = 24;
+let fallbackExpanded = false;
+
+function n(v) { return (v||0).toLocaleString(); }
+function pct(a,b) { return b ? (a/b*100).toFixed(1)+'%' : '0%'; }
+
+// ── Load All Data ──
+async function loadAll() {
+  const r = await fetch(`/api/analytics?hours=${hours}`);
+  const d = await r.json();
+  const total = d.lang_dist.reduce((s,x)=>s+x.n, 0);
+  if (hours < 168 && total === 0 && !fallbackExpanded) {
+    fallbackExpanded = true;
+    hours = 168;
+    document.getElementById('hoursSelect').value = '168';
+    document.getElementById('reportTime').textContent = '最近24小时没有数据，已自动切换到近7天';
+    return loadAll();
+  }
+  renderKPI(d);
+  renderTimeline(d);
+  renderMarketDonut(d);
+  renderUrgency(d);
+  renderSourceRanking(d);
+  renderSymbolRanking(d);
+  renderLangMarket(d);
+  loadPeriodStats();
+  const now = new Date().toLocaleString('zh-Hans');
+  document.getElementById('reportTime').textContent = `生成于 ${now}`;
+}
+
+// ── KPI ──
+function renderKPI(d) {
+  const total = d.lang_dist.reduce((s,x)=>s+x.n, 0);
+  const en    = d.lang_dist.find(x=>x.lang==='en')?.n || 0;
+  const zh    = d.lang_dist.find(x=>x.lang==='zh-Hans')?.n || 0;
+  const crypto= d.market_dist.find(x=>x.market==='crypto')?.n || 0;
+  const stock = d.market_dist.find(x=>x.market==='stock')?.n || 0;
+  const high  = d.urgency_dist.find(x=>x.urgency===3)?.n || 0;
+
+  document.getElementById('k-total').textContent   = n(total);
+  document.getElementById('k-flash').textContent   = `${n(d.flash_count)} 条快讯`;
+  document.getElementById('k-en').textContent      = n(en);
+  document.getElementById('k-en-pct').textContent  = pct(en, total);
+  document.getElementById('k-zh').textContent      = n(zh);
+  document.getElementById('k-zh-pct').textContent  = pct(zh, total);
+  document.getElementById('k-crypto').textContent  = n(crypto);
+  document.getElementById('k-crypto-pct').textContent = pct(crypto, total);
+  document.getElementById('k-stock').textContent   = n(stock);
+  document.getElementById('k-stock-pct').textContent  = pct(stock, total);
+  document.getElementById('k-high').textContent    = n(high);
+}
+
+// ── Timeline ──
+function renderTimeline(d) {
+  const labels = d.hour_series.map(x=>x.hour);
+  const vals   = d.hour_series.map(x=>x.n);
+  const peak   = Math.max(...vals);
+  const peakH  = labels[vals.indexOf(peak)];
+  document.getElementById('insightTimelineText').textContent =
+    vals.length ? `高峰时段 ${peakH}，共 ${n(peak)} 条新闻；近${hours}小时共发布 ${n(vals.reduce((a,b)=>a+b,0))} 条。` : '暂无数据';
+
+  if (charts.timeline) charts.timeline.destroy();
+  charts.timeline = new Chart(document.getElementById('chartTimeline'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '新闻数', data: vals,
+        backgroundColor: vals.map(v => v===peak ? '#7132f5' : 'rgba(113,50,245,0.35)'),
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label: c=>`${c.parsed.y} 条`}} },
+      scales: {
+        x: { grid:{display:false}, ticks:{maxRotation:0, font:{size:10}} },
+        y: { grid:{color:'rgba(255,255,255,0.04)'}, ticks:{font:{size:10}} }
+      }
+    }
+  });
+}
+
+// ── Market Donut ──
+function renderMarketDonut(d) {
+  const labels = d.market_dist.map(x => MARKET_LABELS[x.market] || x.market);
+  const vals   = d.market_dist.map(x => x.n);
+  const colors = d.market_dist.map(x => MARKET_COLORS[x.market] || '#5c5f75');
+
+  if (charts.market) charts.market.destroy();
+  charts.market = new Chart(document.getElementById('chartMarket'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data:vals, backgroundColor:colors, borderWidth:2, borderColor:'#12131e', hoverOffset:6 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      cutout: '62%',
+      plugins: {
+        legend: { position:'right', labels:{ boxWidth:10, padding:12, font:{size:11} } },
+        tooltip: { callbacks:{ label: c=>`${c.label}: ${n(c.parsed)} 条 (${pct(c.parsed, vals.reduce((a,b)=>a+b,0))})` } }
+      }
+    }
+  });
+}
+
+// ── Urgency ──
+function renderUrgency(d) {
+  const u = {1:0, 2:0, 3:0};
+  d.urgency_dist.forEach(x => u[x.urgency] = x.n);
+  document.getElementById('u1-val').textContent = n(u[1]);
+  document.getElementById('u2-val').textContent = n(u[2]);
+  document.getElementById('u3-val').textContent = n(u[3]);
+
+  if (charts.urgency) charts.urgency.destroy();
+  charts.urgency = new Chart(document.getElementById('chartUrgency'), {
+    type: 'bar',
+    data: {
+      labels: ['低 (1)', '中 (2)', '高 (3)'],
+      datasets: [{
+        data: [u[1], u[2], u[3]],
+        backgroundColor: ['rgba(92,95,117,0.5)', 'rgba(245,166,35,0.6)', 'rgba(232,64,64,0.7)'],
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      plugins: { legend:{display:false} },
+      scales: {
+        x: { grid:{color:'rgba(255,255,255,0.04)'} },
+        y: { grid:{display:false} }
+      }
+    }
+  });
+}
+
+// ── Source Ranking ──
+function renderSourceRanking(d) {
+  const max = d.top_sources[0]?.n || 1;
+  document.getElementById('sourceRanking').innerHTML =
+    d.top_sources.slice(0,12).map((x,i) => `
+    <div class="rank-row">
+      <span class="rank-num">${i+1}</span>
+      <span class="rank-name" title="${x.provider}">${x.provider}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${(x.n/max*100).toFixed(1)}%"></div></div>
+      <span class="rank-val">${n(x.n)}</span>
+    </div>`).join('');
+}
+
+// ── Symbol Ranking ──
+function renderSymbolRanking(d) {
+  const max = d.top_symbols[0]?.n || 1;
+  if (!d.top_symbols.length) {
+    document.getElementById('symbolRanking').innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;text-align:center">暂无关联交易对数据</div>';
+    return;
+  }
+  document.getElementById('symbolRanking').innerHTML =
+    d.top_symbols.slice(0,15).map((x,i) => `
+    <div class="rank-row">
+      <span class="rank-num">${i+1}</span>
+      <span class="rank-name">${x.symbol}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${(x.n/max*100).toFixed(1)}%;background:var(--orange)"></div></div>
+      <span class="rank-val">${n(x.n)}</span>
+    </div>`).join('');
+}
+
+// ── Lang × Market Grouped Bar ──
+function renderLangMarket(d) {
+  const markets = ['stock','crypto','forex','futures','index','economic'];
+  const enVals  = markets.map(m => (d.market_lang[m]?.['en'] || 0));
+  const zhVals  = markets.map(m => (d.market_lang[m]?.['zh-Hans'] || 0));
+  const labels  = markets.map(m => MARKET_LABELS[m]);
+
+  if (charts.langMarket) charts.langMarket.destroy();
+  charts.langMarket = new Chart(document.getElementById('chartLangMarket'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'英文 EN', data:enVals, backgroundColor:'rgba(113,50,245,0.7)', borderRadius:4 },
+        { label:'中文 ZH', data:zhVals, backgroundColor:'rgba(20,158,97,0.7)', borderRadius:4 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ labels:{ boxWidth:10, font:{size:11} } } },
+      scales: {
+        x: { grid:{display:false}, stacked:false },
+        y: { grid:{color:'rgba(255,255,255,0.04)'}, stacked:false }
+      }
+    }
+  });
+}
+
+// ── Period Stats (周/月) ──
+async function loadPeriodStats() {
+  const [wk, mo] = await Promise.all([
+    fetch('/api/analytics/period?type=week&limit=100').then(r => r.json()).catch(() => ({periods:[]})),
+    fetch('/api/analytics/period?type=month&limit=100').then(r => r.json()).catch(() => ({periods:[]})),
+  ]);
+  renderPeriodChart('chartWeekly', wk.periods, '每周');
+  renderPeriodChart('chartMonthly', mo.periods, '每月');
+}
+
+function renderPeriodChart(canvasId, periods, typeLabel) {
+  if (!periods || periods.length === 0) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = '#5c5f75';
+    ctx.font = '12px IBM Plex Sans';
+    ctx.fillText('暂无数据', 20, 40);
+    return;
+  }
+  const labels  = periods.map(p => p.period);
+  const enVals  = periods.map(p => p.en);
+  const zhVals  = periods.map(p => p.zh);
+  const totals  = periods.map(p => p.total);
+  const key = canvasId;
+  if (charts[key]) charts[key].destroy();
+  charts[key] = new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '英文 EN',  data: enVals, backgroundColor: 'rgba(113,50,245,0.7)', borderRadius: 4, stack: 'lang' },
+        { label: '中文 ZH',  data: zhVals, backgroundColor: 'rgba(20,158,97,0.7)',  borderRadius: 4, stack: 'lang' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { boxWidth: 10, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            afterBody: (items) => {
+              const idx = items[0].dataIndex;
+              return `合计: ${totals[idx]} 条`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+// ── Hours Select ──
+document.getElementById('hoursSelect').addEventListener('change', e => {
+  fallbackExpanded = false;
+  hours = parseInt(e.target.value); loadAll();
+});
+
+// ── Init ──
+loadAll();
+setInterval(loadAll, 60000); // 每分钟刷新
+</script>
+</body>
+</html>

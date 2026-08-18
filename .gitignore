@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────
+# TV News Analyzer — .gitignore
+# 关键原则：所有可能含用户数据/凭证的文件都不进 git
+# ─────────────────────────────────────────
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+
+# ── 虚拟环境 ──
+venv/
+.venv/
+env/
+
+# ── 运行时数据（用户实际内容，绝不推送） ──
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/cookies.txt
+data/cookies.json
+data/*.code-workspace
+!data/.gitkeep
+
+backups/*.db
+backups/*.db.gz
+backups/pre_restore_*
+!backups/.gitkeep
+
+# 日志（运行时产生，可能含敏感 URL/cookie）
+logs/*.log
+logs/*.pid
+logs/backfill.log
+!logs/.gitkeep
+
+# ── 环境变量（含 API key、token、cookie 路径） ──
+.env
+.env.local
+.env.*.local
+
+# ── IDE / 编辑器 ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── macOS ──
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ── 自动化工具缓存 ──
+.playwright-mcp/
+.claude/
+
+# ── 测试产物（保留测试源码，不保留产出） ──
+tests/test_*.db
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── 备份临时文件 ──
+*.bak
+*.tmp
+*.orig

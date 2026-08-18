@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV News — 回填设置</title>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<style>
+:root {
+  --bg-primary:    #0d0e14;
+  --bg-card:       #12131e;
+  --bg-card-hover: #181928;
+  --bg-filter:     #0f1019;
+  --border:        rgba(113,50,245,0.15);
+  --border-card:   rgba(113,50,245,0.12);
+  --purple:        #7132f5;
+  --purple-subtle: rgba(113,50,245,0.12);
+  --green:         #149e61;
+  --green-subtle:  rgba(20,158,97,0.14);
+  --red:           #e84040;
+  --red-subtle:    rgba(232,64,64,0.14);
+  --yellow:        #f5a623;
+  --yellow-subtle:  rgba(245,166,35,0.14);
+  --text-primary:  #ffffff;
+  --text-secondary:#9497a9;
+  --text-muted:    #5c5f75;
+  --radius:        12px;
+  --font-display:  'IBM Plex Sans', Helvetica, Arial, sans-serif;
+  --font-ui:       'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 14px; min-height: 100vh; }
+
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(13,14,20,0.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.logo { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+.logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--purple) 0%, #5741d8 100%); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.clock { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.back-link { font-size: 12px; color: var(--text-secondary); text-decoration: none; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; transition: all 0.15s; }
+.back-link:hover { color: var(--purple); border-color: var(--purple); background: var(--purple-subtle); }
+
+.main { max-width: 920px; margin: 0 auto; padding: 32px 24px 80px; }
+.header { margin-bottom: 24px; }
+.title { font-family: var(--font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+.subtitle { color: var(--text-muted); font-size: 14px; }
+
+.section { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+.section-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat { background: var(--bg-filter); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; }
+.stat-value { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.stat-value.green { color: var(--green); }
+.stat-value.yellow { color: var(--yellow); }
+.stat-value.purple { color: var(--purple); }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.form-input { background: var(--bg-filter); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text-primary); font-size: 14px; font-family: inherit; outline: none; }
+.form-input:focus { border-color: var(--purple); }
+.form-help { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.btn { background: var(--purple); color: #fff; border: 0; padding: 10px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s, transform 0.15s; font-family: inherit; }
+.btn:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn.secondary { background: var(--purple-subtle); color: var(--purple); border: 1px solid var(--border); }
+.btn.danger { background: var(--red); }
+.btn.danger:hover { background: #c73333; }
+
+.status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px; }
+.status-pill.idle    { background: rgba(255,255,255,0.06); color: var(--text-secondary); }
+.status-pill.running { background: var(--yellow-subtle); color: var(--yellow); }
+.status-pill.done    { background: var(--green-subtle); color: var(--green); }
+.status-pill.error   { background: var(--red-subtle); color: var(--red); }
+.status-pill.stopped { background: var(--red-subtle); color: var(--red); }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.status-dot.pulse { animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.log-box { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; color: #c8cad6; line-height: 1.5; max-height: 240px; overflow-y: auto; white-space: pre-wrap; }
+.log-empty { color: var(--text-muted); font-style: italic; }
+
+.toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--purple); color: #fff; padding: 10px 24px; border-radius: 999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(113,50,245,0.4); opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 1000; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.success { background: var(--green); }
+.toast.error { background: var(--red); }
+
+@media (max-width: 768px) {
+  .main { padding: 20px 16px 60px; }
+  .title { font-size: 22px; }
+  .form-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-icon">🔄</div>
+      TV News
+    </div>
+  </div>
+  <div class="topbar-right">
+    <a href="/system" class="back-link" data-i18n="back.back_to_system">← 返回系统</a>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main class="main">
+  <div class="header">
+    <h1 class="title" data-i18n="back.title">正文回填设置</h1>
+    <p class="subtitle" data-i18n="back.subtitle">批量回填 story_body：对已入库但无正文的新闻补抓详情接口</p>
+  </div>
+
+  <!-- 状态概览 -->
+  <section class="section">
+    <div class="section-title">📊 <span data-i18n="back.section.status">当前状态</span></div>
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-label" data-i18n="back.field.pending">未回填条数</div>
+        <div class="stat-value yellow" id="pendingCount">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label" data-i18n="back.field.status">任务状态</div>
+        <div class="stat-value" id="statusPill">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label" data-i18n="back.field.started">开始时间</div>
+        <div class="stat-value" id="startedAt" style="font-size:13px;">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label" data-i18n="back.field.ended">结束时间</div>
+        <div class="stat-value" id="endedAt" style="font-size:13px;">—</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 参数 -->
+  <section class="section">
+    <div class="section-title">⚙️ <span data-i18n="back.section.params">运行参数</span></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" data-i18n="back.field.limit">最多回填条数</label>
+        <input type="number" class="form-input" id="paramLimit" min="1" max="10000" value="500">
+        <div class="form-help" data-i18n="back.field.limit_help">默认 500，最大 10000</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="back.field.delay">每条间隔秒数</label>
+        <input type="number" class="form-input" id="paramDelay" min="0.1" max="10" step="0.1" value="0.8">
+        <div class="form-help" data-i18n="back.field.delay_help">建议 0.5-1.0 防 API 限速</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btnRun" data-i18n="back.btn.run">▶ 开始回填</button>
+      <button class="btn danger" id="btnStop" data-i18n="back.btn.stop" style="display:none;">■ 停止</button>
+      <span style="color: var(--text-muted); font-size: 12px; margin-left: auto;" id="hint"></span>
+    </div>
+  </section>
+
+  <!-- 实时日志 -->
+  <section class="section">
+    <div class="section-title">📜 <span data-i18n="back.section.log">实时日志</span> <span style="margin-left: auto; font-size: 12px; color: var(--text-muted);" id="logSize">0 行</span></div>
+    <div class="log-box" id="logBox"><div class="log-empty" data-i18n="back.log.empty">暂无日志</div></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script defer src="/static/shared-ui.js"></script>
+<script defer src="/static/config_backfill.js"></script>
+</body>
+</html>

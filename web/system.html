@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV News — 系统总览</title>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<style>
+:root {
+  --bg-primary:    #0d0e14;
+  --bg-card:       #12131e;
+  --bg-card-hover: #181928;
+  --border:        rgba(113,50,245,0.15);
+  --border-card:   rgba(113,50,245,0.12);
+  --purple:        #7132f5;
+  --purple-subtle: rgba(113,50,245,0.12);
+  --green:         #149e61;
+  --green-subtle:  rgba(20,158,97,0.14);
+  --red:           #e84040;
+  --red-subtle:    rgba(232,64,64,0.14);
+  --yellow:        #f5a623;
+  --yellow-subtle:  rgba(245,166,35,0.14);
+  --text-primary:  #ffffff;
+  --text-secondary:#9497a9;
+  --text-muted:    #5c5f75;
+  --radius:        12px;
+  --font-display:  'IBM Plex Sans', Helvetica, Arial, sans-serif;
+  --font-ui:       'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 14px; min-height: 100vh; }
+
+/* Top Bar */
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(13,14,20,0.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.logo { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+.logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--purple) 0%, #5741d8 100%); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.clock { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* Main */
+.system-main { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+.system-header { margin-bottom: 32px; }
+.system-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
+.system-subtitle { color: var(--text-muted); font-size: 14px; }
+.system-subtitle code { background: rgba(113,50,245,0.12); color: var(--purple); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; }
+
+/* Summary cards */
+.system-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px; }
+.summary-card { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius); padding: 16px; }
+.summary-icon { font-size: 20px; margin-bottom: 6px; }
+.summary-num { font-family: var(--font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; margin-bottom: 4px; }
+.summary-num.green { color: var(--green); }
+.summary-num.yellow { color: var(--yellow); }
+.summary-num.red { color: var(--red); }
+.summary-num.purple { color: var(--purple); }
+.summary-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+
+/* Section */
+.system-section { margin-bottom: 32px; }
+.section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.section-header h2 { font-family: var(--font-display); font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+.section-count { background: rgba(255,255,255,0.06); color: var(--text-secondary); padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+
+/* Logic list */
+.logic-list { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius); overflow: hidden; }
+.logic-item { display: grid; grid-template-columns: 1fr 2fr 1.4fr 1fr auto; gap: 16px; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); align-items: center; }
+.logic-item:last-child { border-bottom: 0; }
+.logic-item:hover { background: var(--bg-card-hover); }
+.logic-name { font-weight: 600; color: var(--text-primary); }
+.logic-desc { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.logic-source { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; color: var(--purple); background: var(--purple-subtle); padding: 2px 6px; border-radius: 4px; display: inline-block; }
+.logic-freq { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.logic-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px; }
+.logic-status.active { background: var(--green-subtle); color: var(--green); }
+.logic-status.partial { background: var(--yellow-subtle); color: var(--yellow); }
+.logic-status.missing { background: var(--red-subtle); color: var(--red); }
+.logic-status.manual { background: rgba(255,255,255,0.06); color: var(--text-secondary); }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.status-dot.pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* Empty */
+.empty-msg { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+/* Footer */
+.system-footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.system-footer code { font-family: 'JetBrains Mono', Menlo, monospace; background: rgba(113,50,245,0.1); color: var(--purple); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+
+/* ⚙️ Config button */
+.logic-config-btn { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); width: 28px; height: 28px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.logic-config-btn:hover { background: var(--purple-subtle); color: var(--purple); border-color: var(--purple); }
+.logic-config-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .system-main { padding: 20px 16px 60px; }
+  .system-title { font-size: 22px; }
+  .logic-item { grid-template-columns: 1fr; gap: 6px; }
+  .logic-source, .logic-freq { justify-self: start; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-icon">⚙️</div>
+      TV News
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main class="system-main">
+  <div class="system-header">
+    <h1 class="system-title" data-i18n="system.title">系统总览</h1>
+    <p class="system-subtitle">
+      <span data-i18n="system.subtitle">TV News 自动化 & 手动逻辑清单</span> ·
+      <span data-i18n="system.last_updated">最后更新于</span> <code id="lastUpdated">—</code> ·
+      <span data-i18n="system.maintain_tip">系统更新时请同步修改</span> <code>web/system.js</code>
+    </p>
+  </div>
+
+  <div class="system-summary" id="systemSummary"></div>
+
+  <section class="system-section">
+    <div class="section-header">
+      <h2><span data-i18n="system.section.auto">🟢 后台自动运行</span></h2>
+      <span class="section-count" id="autoCount">0</span>
+    </div>
+    <div class="logic-list" id="autoList"></div>
+  </section>
+
+  <section class="system-section">
+    <div class="section-header">
+      <h2><span data-i18n="system.section.semi">🟡 半自动 / 触发式</span></h2>
+      <span class="section-count" id="semiCount">0</span>
+    </div>
+    <div class="logic-list" id="semiList"></div>
+  </section>
+
+  <section class="system-section">
+    <div class="section-header">
+      <h2><span data-i18n="system.section.manual">🔴 需要手动运行</span></h2>
+      <span class="section-count" id="manualCount">0</span>
+    </div>
+    <div class="logic-list" id="manualList"></div>
+  </section>
+
+  <section class="system-section">
+    <div class="section-header">
+      <h2><span data-i18n="system.section.missing">⚠️ 缺失的自动化</span></h2>
+      <span class="section-count" id="missingCount">0</span>
+    </div>
+    <div class="logic-list" id="missingList"></div>
+  </section>
+
+  <div class="system-footer">
+    <p data-i18n="system.footer.note">📝 维护说明：每条逻辑带 <code>source</code> 字段指向代码位置。系统改动时，请同步更新 <code>web/system.js</code> 里的 <code>SYSTEM_LOGIC</code> 数组。</p>
+    <p data-i18n="system.footer.tip">💡 提示：本页数据由 <code>system.js</code> 单一数据源驱动，新增/修改/删除逻辑只需改该数组。点击 ⚙️ 跳转到该功能的完整配置页（如有）。</p>
+  </div>
+</main>
+
+<script defer src="/static/shared-ui.js"></script>
+<script defer src="/static/system.js"></script>
+</body>
+</html>

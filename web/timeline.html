@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV News — AI 市场洞察</title>
+<style>
+:root {
+  --bg-primary:    #0d0e14;
+  --bg-card:       #12131e;
+  --bg-card-hover: #181928;
+  --bg-filter:     #0f1019;
+  --border:        rgba(113,50,245,0.15);
+  --border-card:   rgba(113,50,245,0.12);
+  --purple:        #7132f5;
+  --purple-dark:   #5741d8;
+  --purple-subtle: rgba(113,50,245,0.12);
+  --green:         #149e61;
+  --green-subtle:  rgba(20,158,97,0.14);
+  --red:           #e84040;
+  --red-subtle:    rgba(232,64,64,0.14);
+  --yellow:        #f5a623;
+  --yellow-subtle: rgba(245,166,35,0.14);
+  --text-primary:  #ffffff;
+  --text-secondary:#9497a9;
+  --text-muted:    #5c5f75;
+  --radius-card:   16px;
+  --font-ui:      'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Top Bar ── */
+.topbar {
+  background: rgba(13,14,20,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; z-index: 1000;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.logo { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+.logo-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--purple) 0%, var(--purple-dark) 100%);
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.nav-links { display: flex; gap: 4px; }
+.nav-link { padding: 6px 14px; border-radius: 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; transition: all 0.2s; }
+.nav-link:hover { background: var(--purple-subtle); color: var(--purple); }
+.nav-link.active { background: var(--purple-subtle); color: var(--purple); }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.clock { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.live-badge { display: flex; align-items: center; gap: 5px; background: var(--green-subtle); border: 1px solid rgba(20,158,97,0.3); border-radius: 20px; padding: 3px 8px; font-size: 11px; font-weight: 600; color: var(--green); }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse-dot 1.5s ease-in-out infinite; }
+@keyframes pulse-dot { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.75); } }
+.refresh-btn { background: var(--purple-subtle); border: 1px solid var(--border); color: var(--purple); border-radius: 12px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.refresh-btn:hover { background: var(--purple); color: #fff; }
+
+/* ── Filter Bar ── */
+.filter-bar {
+  background: var(--bg-filter);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex; align-items: center; gap: 16px;
+  flex-shrink: 0;
+}
+.filter-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.hours-select { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); border-radius: 12px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+
+/* ── Main ── */
+.main-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* ── Hero Section ── */
+.hero-section {
+  background: linear-gradient(135deg, rgba(113,50,245,0.2) 0%, rgba(113,50,245,0.05) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.hero-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.hero-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.hero-badge { font-size: 10px; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+.badge-ai { background: var(--purple-subtle); color: var(--purple); }
+.badge-fallback { background: rgba(149,151,169,0.15); color: var(--text-muted); }
+.hero-theme { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; line-height: 1.3; }
+.hero-summary { font-size: 14px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 16px; }
+.hero-meta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.hero-symbols { display: flex; gap: 6px; flex-wrap: wrap; }
+.hero-symbol { background: var(--bg-card); border: 1px solid var(--border); padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; color: var(--purple); }
+.hero-outlook {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  border-left: 3px solid var(--purple);
+}
+.hero-outlook-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+.hero-outlook-text { font-size: 14px; color: var(--text-primary); line-height: 1.6; }
+
+/* ── Risk Banner ── */
+.risk-banner {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+.risk-banner.high { background: var(--red-subtle); border: 1px solid rgba(232,64,64,0.3); }
+.risk-banner.medium { background: var(--yellow-subtle); border: 1px solid rgba(245,166,35,0.3); }
+.risk-banner.low { background: var(--green-subtle); border: 1px solid rgba(20,158,97,0.3); }
+.risk-icon { font-size: 20px; }
+.risk-info { flex: 1; }
+.risk-label { font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.risk-banner.high .risk-label { color: var(--red); }
+.risk-banner.medium .risk-label { color: var(--yellow); }
+.risk-banner.low .risk-label { color: var(--green); }
+.risk-desc { font-size: 11px; color: var(--text-muted); }
+
+/* ── Insights Grid ── */
+.section-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.insights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.viewpoints-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.viewpoint-card { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius-card); padding: 14px; }
+.viewpoint-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.viewpoint-theme { font-size: 13px; font-weight: 700; color: var(--text-primary); flex: 1; }
+.viewpoint-risk { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+.viewpoint-risk.high { background: var(--red-subtle); color: var(--red); }
+.viewpoint-risk.medium { background: var(--yellow-subtle); color: var(--yellow); }
+.viewpoint-risk.low { background: var(--green-subtle); color: var(--green); }
+.viewpoint-summary { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 8px; }
+.viewpoint-symbols { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.viewpoint-symbols .hero-symbol { background: var(--purple-subtle); color: var(--purple); font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+.viewpoint-outlook { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+.insight-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.insight-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.insight-card.type-correlation::before { background: var(--purple); }
+.insight-card.type-warning::before { background: var(--red); }
+.insight-card.type-surveillance::before { background: var(--yellow); }
+.insight-card.type-anomaly::before { background: var(--yellow); }
+.insight-impact {
+  position: absolute;
+  top: 12px; right: 12px;
+  font-size: 11px; font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+.impact-bullish { background: var(--green-subtle); color: var(--green); }
+.impact-bearish { background: var(--red-subtle); color: var(--red); }
+.impact-warning { background: var(--yellow-subtle); color: var(--yellow); }
+.impact-volatility { background: rgba(149,151,169,0.15); color: var(--text-secondary); }
+.insight-type { font-size: 10px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+.insight-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; line-height: 1.4; }
+.insight-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 10px; }
+.insight-prediction {
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  border-left: 3px solid var(--yellow);
+  line-height: 1.5;
+}
+.insight-footer { display: flex; align-items: center; justify-content: space-between; }
+.insight-symbols { display: flex; gap: 4px; flex-wrap: wrap; }
+.insight-symbol { font-size: 10px; background: var(--bg-primary); padding: 2px 6px; border-radius: 4px; color: var(--text-secondary); }
+.insight-confidence { font-size: 10px; color: var(--text-muted); }
+
+/* ── Symbol Network ── */
+.symbol-network {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  padding: 18px;
+  margin-bottom: 24px;
+}
+.symbol-list { display: flex; gap: 8px; flex-wrap: wrap; }
+.symbol-node {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-primary);
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.symbol-node:hover { border-color: var(--purple); transform: translateY(-2px); }
+.symbol-name { font-weight: 700; color: var(--purple); }
+.symbol-count { font-size: 11px; color: var(--text-muted); }
+
+/* ── Cross Region ── */
+.cross-region {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  padding: 18px;
+  margin-bottom: 24px;
+}
+.region-link { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.region-link:last-child { border-bottom: none; }
+.region-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--purple); flex-shrink: 0; }
+.region-names { display: flex; align-items: center; gap: 8px; flex: 1; }
+.region-name { font-size: 13px; font-weight: 600; }
+.region-arrow { color: var(--text-muted); }
+.region-shared { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+.region-count-badge {
+  background: var(--purple-subtle);
+  color: var(--purple);
+  font-size: 11px; font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* ── Time Patterns ── */
+.time-patterns {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  padding: 18px;
+  margin-bottom: 24px;
+}
+.pattern-row { display: flex; align-items: center; gap: 12px; }
+.pattern-icon { font-size: 20px; }
+.pattern-info { flex: 1; }
+.pattern-label { font-size: 12px; color: var(--text-muted); }
+.pattern-value { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.pattern-trend { font-size: 12px; padding: 4px 10px; border-radius: 10px; font-weight: 600; }
+.pattern-trend.escalating { background: var(--red-subtle); color: var(--red); }
+.pattern-trend.stable { background: var(--green-subtle); color: var(--green); }
+.pattern-trend.deescalating { background: var(--yellow-subtle); color: var(--yellow); }
+
+/* ── Stats Row ── */
+.stats-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  padding: 16px 20px;
+  flex: 1;
+  min-width: 140px;
+}
+.stat-value { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+.stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; }
+
+/* ── Empty State ── */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; color: var(--text-muted); text-align: center; }
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+.empty-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary); }
+.empty-text { font-size: 13px; line-height: 1.6; max-width: 400px; }
+
+/* ── Toast ── */
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 20px; font-size: 13px; color: var(--text-primary); box-shadow: 0 4px 24px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s; z-index: 2000; }
+.toast.show { opacity: 1; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<script defer src="/static/shared-ui.js"></script>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo"><div class="logo-icon">🧠</div>AI 市场洞察</div>
+    <div class="nav-links">
+      <a href="/" class="nav-link">看板</a>
+      <a href="/analytics" class="nav-link">分析</a>
+      <a href="/timeline" class="nav-link active">洞察</a>
+      <a href="/map" class="nav-link">地图</a>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <button class="refresh-btn" onclick="loadAll()">🔄 刷新</button>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <span class="filter-label">分析窗口</span>
+  <select class="hours-select" id="hoursSelect" onchange="loadAll()">
+    <option value="6">最近 6 小时</option>
+    <option value="12">最近 12 小时</option>
+    <option value="24" selected>最近 24 小时</option>
+    <option value="48">最近 48 小时</option>
+  </select>
+</div>
+
+<!-- Main -->
+<div class="main-content" id="mainContent">
+  <div class="empty-state">
+    <div class="empty-icon">🧠</div>
+    <div class="empty-title">正在加载 AI 洞察...</div>
+    <div class="empty-text">系统正在分析市场事件之间的关联</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────
+let globalNarrative = null;
+
+// ── Load Data ──────────────────────────────────────────────
+async function loadAll() {
+  const hours = parseInt(document.getElementById('hoursSelect').value);
+  showToast('正在分析市场洞察...');
+
+  try {
+    const resp = await fetch(`/api/global_narrative?hours=${hours}`);
+    const data = await resp.json();
+
+    if (data.source === 'none') {
+      globalNarrative = null;
+    } else {
+      globalNarrative = data;
+    }
+
+    renderAll();
+    showToast(globalNarrative ? '洞察加载完成' : '暂无数据');
+  } catch (e) {
+    showToast('加载失败: ' + e.message);
+  }
+}
+
+function renderAll() {
+  const main = document.getElementById('mainContent');
+
+  if (!globalNarrative) {
+    main.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🔮</div>
+        <div class="empty-title">暂无 AI 洞察</div>
+        <div class="empty-text">系统正在生成全局洞察，请稍后再试</div>
+      </div>`;
+    return;
+  }
+
+  const gv = globalNarrative.global_view || {};
+  const insights = globalNarrative.insights || [];
+  const network = globalNarrative.symbol_network || {};
+  const crossRegion = globalNarrative.cross_region_links || [];
+  const timePatterns = globalNarrative.time_patterns || {};
+
+  // Top symbols sorted by frequency
+  const topSymbols = Object.entries(network)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 16);
+
+  let html = '';
+
+  // ── Stats Row ──
+  const generatedAt = globalNarrative.generated_at ? new Date(globalNarrative.generated_at * 1000) : null;
+  const generatedTimeStr = generatedAt ? generatedAt.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Shanghai'}) : '--:--:--';
+  const nextUpdateIn = generatedAt ? getNextUpdateIn(generatedAt) : null;
+
+  html += `
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value">${globalNarrative.news_count || 0}</div>
+        <div class="stat-label">分析新闻</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${insights.length}</div>
+        <div class="stat-label">条洞察</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${topSymbols.length}</div>
+        <div class="stat-label">个关联符号</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${generatedTimeStr}</div>
+        <div class="stat-label">生成时间</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="nextUpdateTimer">--</div>
+        <div class="stat-label">下次更新</div>
+      </div>
+    </div>`;
+
+  // ── Hero Section ──
+  // 支持 gv 为数组（5条观点）或对象（旧格式1条观点）
+  const viewpoints = Array.isArray(gv) ? gv : [gv];
+  const first = viewpoints[0] || {};
+  const risk = first.risk_level || 'low';
+  const riskIcon = risk === 'high' ? '⚠️' : risk === 'medium' ? '⚡' : '✅';
+  const riskText = risk === 'high' ? '高风险' : risk === 'medium' ? '中等风险' : '低风险';
+  const riskDesc = risk === 'high' ? '市场波动剧烈，注意风险' : risk === 'medium' ? '市场存在不确定性' : '市场相对平稳';
+
+  html += `
+    <div class="hero-section">
+      <div class="hero-header">
+        <div class="hero-title">🧠 AI 全局观点</div>
+        <span class="hero-badge badge-ai">🤖 AI 生成 · ${viewpoints.length} 条</span>
+      </div>
+      <div class="hero-theme">📌 ${first.theme || '暂无主题'}</div>
+      <div class="hero-summary">${first.summary || ''}</div>
+      <div class="hero-meta">
+        <div class="hero-symbols">
+          ${(first.key_symbols || []).map(s => `<span class="hero-symbol">${s}</span>`).join('')}
+        </div>
+      </div>
+      <div class="hero-outlook">
+        <div class="hero-outlook-label">📊 AI 市场展望</div>
+        <div class="hero-outlook-text">${first.outlook || '暂无展望'}</div>
+      </div>
+      <div class="risk-banner ${risk}">
+        <div class="risk-icon">${riskIcon}</div>
+        <div class="risk-info">
+          <div class="risk-label">${riskText}</div>
+          <div class="risk-desc">${riskDesc}</div>
+        </div>
+      </div>
+    </div>`;
+
+  // 其他观点（如果有多条）
+  if (viewpoints.length > 1) {
+    html += `<div class="section-title">📋 其他市场观点</div>`;
+    html += `<div class="viewpoints-grid">`;
+    for (let i = 1; i < viewpoints.length; i++) {
+      const v = viewpoints[i];
+      const vrisk = v.risk_level || 'low';
+      const vriskLabel = vrisk === 'high' ? '⚠️ 高风险' : vrisk === 'medium' ? '⚡ 中等' : '✅ 低风险';
+      html += `
+        <div class="viewpoint-card">
+          <div class="viewpoint-header">
+            <div class="viewpoint-theme">📌 ${v.theme || '暂无主题'}</div>
+            <span class="viewpoint-risk ${vrisk}">${vriskLabel}</span>
+          </div>
+          <div class="viewpoint-summary">${v.summary || ''}</div>
+          <div class="viewpoint-symbols">
+            ${(v.key_symbols || []).map(s => `<span class="hero-symbol">${s}</span>`).join('')}
+          </div>
+          <div class="viewpoint-outlook">📊 ${v.outlook || ''}</div>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── Insights ──
+  if (insights.length > 0) {
+    html += `<div class="section-title">💡 AI 洞察 & 影响预测</div>`;
+    html += `<div class="insights-grid">`;
+    for (const ins of insights) {
+      const impact = getImpact(ins);
+      html += `
+        <div class="insight-card type-${ins.type || 'correlation'}">
+          <div class="insight-impact ${impact.class}">${impact.label}</div>
+          <div class="insight-type">${getTypeLabel(ins.type)}</div>
+          <div class="insight-title">${ins.title || '无标题'}</div>
+          <div class="insight-desc">${ins.description || ''}</div>
+          ${ins.impact_prediction ? `
+          <div class="insight-prediction">📍 影响预测：${ins.impact_prediction}</div>
+          ` : ''}
+          <div class="insight-footer">
+            <div class="insight-symbols">
+              ${(ins.symbols || []).slice(0, 3).map(s => `<span class="insight-symbol">${s}</span>`).join('')}
+            </div>
+            ${ins.confidence ? `<div class="insight-confidence">${(ins.confidence * 100).toFixed(0)}% 置信</div>` : ''}
+          </div>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── Symbol Network ──
+  if (topSymbols.length > 0) {
+    html += `
+      <div class="symbol-network">
+        <div class="section-title">🔗 跨事件关联网络</div>
+        <div class="symbol-list">
+          ${topSymbols.map(([sym, ids]) => `
+            <div class="symbol-node" title="${ids.length} 条相关新闻">
+              <span class="symbol-name">${sym}</span>
+              <span class="symbol-count">${ids.length} 条</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }
+
+  // ── Cross Region ──
+  if (crossRegion.length > 0) {
+    html += `
+      <div class="cross-region">
+        <div class="section-title">🌍 跨区域关联</div>
+        ${crossRegion.slice(0, 6).map(link => `
+          <div class="region-link">
+            <div class="region-dot"></div>
+            <div class="region-names">
+              <span class="region-name">${link.region_1}</span>
+              <span class="region-arrow">↔</span>
+              <span class="region-name">${link.region_2}</span>
+            </div>
+            <span class="region-count-badge">${link.shared_events} 条共同</span>
+          </div>
+        `).join('')}
+      </div>`;
+  }
+
+  // ── Time Patterns ──
+  if (timePatterns.peak_hours && timePatterns.peak_hours.length > 0) {
+    const trend = timePatterns.trend || 'stable';
+    const trendIcon = trend === 'escalating' ? '📈' : trend === 'deescalating' ? '📉' : '➡️';
+    const trendText = trend === 'escalating' ? '事件增多' : trend === 'deescalating' ? '事件减少' : '保持稳定';
+
+    html += `
+      <div class="time-patterns">
+        <div class="section-title">⏱️ 时间分布</div>
+        <div class="pattern-row">
+          <div class="pattern-icon">${trendIcon}</div>
+          <div class="pattern-info">
+            <div class="pattern-label">趋势</div>
+            <div class="pattern-value">${trendText}</div>
+          </div>
+          <span class="pattern-trend ${trend}">${trendIcon} ${trendText}</span>
+        </div>
+        ${timePatterns.peak_hours.slice(0, 3).map(p => {
+          const time = new Date(p.hour * 1000).toLocaleString('zh-CN', {
+            month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', hour12: false,
+            timeZone: 'Asia/Shanghai'
+          });
+          return `
+            <div style="display:flex;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+              <div class="pattern-icon">🕐</div>
+              <div class="pattern-info">
+                <div class="pattern-label">高峰时段</div>
+                <div class="pattern-value">${time}</div>
+              </div>
+              <div style="margin-left:auto;color:var(--text-muted)">${p.count} 条事件</div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  main.innerHTML = html;
+
+  // 启动下次更新时间倒计时
+  if (nextUpdateIn !== null) {
+    startNextUpdateTimer(nextUpdateIn);
+  }
+}
+
+function getNextUpdateIn(generatedAt) {
+  // AI 全局叙事每 6 小时更新一次
+  const INTERVAL = 6 * 60 * 60 * 1000; // 6 小时
+  const now = Date.now();
+  const nextUpdate = generatedAt.getTime() + INTERVAL;
+  return Math.max(0, nextUpdate - now);
+}
+
+let updateTimerInterval = null;
+function startNextUpdateTimer(msRemaining) {
+  if (updateTimerInterval) clearInterval(updateTimerInterval);
+
+  function updateTimer() {
+    const el = document.getElementById('nextUpdateTimer');
+    if (!el) return;
+
+    msRemaining -= 1000;
+    if (msRemaining <= 0) {
+      el.textContent = '即将更新';
+      clearInterval(updateTimerInterval);
+      // 时间到了就重新加载
+      loadAll();
+    } else {
+      const hours = Math.floor(msRemaining / 3600000);
+      const minutes = Math.floor((msRemaining % 3600000) / 60000);
+      const seconds = Math.floor((msRemaining % 60000) / 1000);
+      if (hours > 0) {
+        el.textContent = `${hours}时${minutes}分`;
+      } else if (minutes > 0) {
+        el.textContent = `${minutes}分${seconds}秒`;
+      } else {
+        el.textContent = `${seconds}秒`;
+      }
+    }
+  }
+
+  updateTimer();
+  updateTimerInterval = setInterval(updateTimer, 1000);
+}
+
+function getImpact(ins) {
+  const type = ins.type || '';
+  const urgency = ins.urgency || 'low';
+  const confidence = ins.confidence || 0.5;
+
+  if (type === 'warning' || urgency === 'high') {
+    return { label: '⚠️ 预警', class: 'impact-warning' };
+  }
+  if (type === 'correlation') {
+    // 高置信度的关联可能是市场信号
+    if (confidence >= 0.7) {
+      return { label: '📈 关联', class: 'impact-bullish' };
+    }
+    return { label: '📊 关联', class: 'impact-volatility' };
+  }
+  if (type === 'anomaly') {
+    return { label: '🔄 波动', class: 'impact-volatility' };
+  }
+  if (type === 'surveillance') {
+    return { label: '👁️ 监控', class: 'impact-volatility' };
+  }
+  return { label: '📊 信号', class: 'impact-volatility' };
+}
+
+function getTypeLabel(type) {
+  const labels = {
+    correlation: '🔗 关联发现',
+    warning: '⚠️ 预警信号',
+    surveillance: '👁️ 市场监控',
+    anomaly: '❓ 异常模式',
+  };
+  return labels[type] || '📊 洞察';
+}
+
+// ── Toast & Clock ─────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('zh-CN', {hour12: false});
+}
+
+// ── Init ──────────────────────────────────────────────────
+function init() {
+  updateClock();
+  setInterval(updateClock, 1000);
+  loadAll();
+  setInterval(loadAll, 60000);
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else { init(); }
+</script>
+</body>
+</html>

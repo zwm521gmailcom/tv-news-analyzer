@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV News — 数据备份</title>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<style>
+:root {
+  --bg-primary:    #0d0e14;
+  --bg-card:       #12131e;
+  --bg-card-hover: #181928;
+  --bg-filter:     #0f1019;
+  --border:        rgba(113,50,245,0.15);
+  --border-card:   rgba(113,50,245,0.12);
+  --purple:        #7132f5;
+  --purple-subtle: rgba(113,50,245,0.12);
+  --green:         #149e61;
+  --green-subtle:  rgba(20,158,97,0.14);
+  --red:           #e84040;
+  --red-subtle:    rgba(232,64,64,0.14);
+  --yellow:        #f5a623;
+  --yellow-subtle:  rgba(245,166,35,0.14);
+  --text-primary:  #ffffff;
+  --text-secondary:#9497a9;
+  --text-muted:    #5c5f75;
+  --radius:        12px;
+  --font-display:  'IBM Plex Sans', Helvetica, Arial, sans-serif;
+  --font-ui:       'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 14px; min-height: 100vh; }
+
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(13,14,20,0.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.logo { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+.logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--purple) 0%, #5741d8 100%); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.clock { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.back-link { font-size: 12px; color: var(--text-secondary); text-decoration: none; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; transition: all 0.15s; }
+.back-link:hover { color: var(--purple); border-color: var(--purple); background: var(--purple-subtle); }
+
+.backup-main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+.backup-header { margin-bottom: 24px; }
+.backup-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+.backup-subtitle { color: var(--text-muted); font-size: 14px; }
+
+/* Section */
+.section { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.section-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; }
+.section-meta { font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', Menlo, monospace; }
+
+/* Action row */
+.action-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.btn { background: var(--purple); color: #fff; border: 0; padding: 9px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s, transform 0.15s; font-family: inherit; }
+.btn:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn.secondary { background: var(--purple-subtle); color: var(--purple); border: 1px solid var(--border); }
+.btn.danger { background: rgba(232,64,64,0.14); color: var(--red); border: 1px solid rgba(232,64,64,0.3); }
+.btn.danger:hover { background: var(--red); color: #fff; }
+.btn-row { display: flex; gap: 8px; }
+
+/* Schedule grid */
+.schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.field { background: var(--bg-filter); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.field-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; }
+.field-value { font-size: 14px; color: var(--text-primary); font-weight: 600; }
+.field-value.mono { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; }
+
+/* Form */
+.form-row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+.form-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.form-input, .form-select { background: var(--bg-filter); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; font-family: inherit; outline: none; }
+.form-input:focus, .form-select:focus { border-color: var(--purple); }
+.form-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.form-checkbox input { width: 16px; height: 16px; accent-color: var(--purple); }
+
+/* Backup list */
+.backup-list { display: flex; flex-direction: column; gap: 6px; }
+.backup-item { display: grid; grid-template-columns: 1fr 100px 140px 100px auto; gap: 12px; padding: 10px 12px; background: var(--bg-filter); border: 1px solid var(--border); border-radius: 8px; align-items: center; }
+.backup-item:hover { background: var(--bg-card-hover); }
+.backup-name { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; color: var(--text-primary); }
+.backup-size { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.backup-time { font-size: 12px; color: var(--text-secondary); }
+.backup-age { font-size: 11px; color: var(--text-muted); padding: 2px 6px; background: rgba(255,255,255,0.04); border-radius: 999px; }
+.backup-age.fresh { color: var(--green); }
+.backup-age.warn { color: var(--yellow); }
+.backup-age.old { color: var(--red); }
+
+.empty-msg { padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+/* Toast */
+.toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--purple); color: #fff; padding: 10px 24px; border-radius: 999px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(113,50,245,0.4); opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 1000; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.error { background: var(--red); }
+.toast.success { background: var(--green); }
+
+/* Confirm dialog */
+.confirm-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.confirm-overlay.open { opacity: 1; pointer-events: all; }
+.confirm-dialog { background: var(--bg-card); border: 1px solid rgba(232,64,64,0.4); border-radius: 16px; padding: 24px; max-width: 480px; width: calc(100% - 32px); }
+.confirm-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; margin-bottom: 12px; color: var(--red); }
+.confirm-text { color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px; }
+.confirm-text strong { color: var(--text-primary); }
+.confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+@media (max-width: 768px) {
+  .backup-main { padding: 20px 16px 60px; }
+  .backup-item { grid-template-columns: 1fr; gap: 4px; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-icon">💾</div>
+      TV News
+    </div>
+  </div>
+  <div class="topbar-right">
+    <a href="/system" class="back-link" data-i18n="backup.back_to_system">← 返回系统</a>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main class="backup-main">
+  <div class="backup-header">
+    <h1 class="backup-title" data-i18n="backup.title">数据备份 & 恢复</h1>
+    <p class="backup-subtitle" data-i18n="backup.subtitle">SQLite 在线热备 + gzip 压缩 + 定期任务 + 一键恢复</p>
+  </div>
+
+  <!-- 路径 & 状态 -->
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">📍 <span data-i18n="backup.section.paths">路径 &amp; 状态</span></h2>
+      <span class="section-meta" data-i18n="backup.paths.note">所有路径与策略只读显示</span>
+    </div>
+    <div class="schedule-grid">
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.db_path">数据库路径</div>
+        <div class="field-value mono" id="infoDbPath">—</div>
+      </div>
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.db_size">DB 大小 / 行数</div>
+        <div class="field-value mono" id="infoDbSize">—</div>
+      </div>
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.backup_dir">备份目录</div>
+        <div class="field-value mono" id="infoBackupDir">—</div>
+      </div>
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.last_backup">最近一次备份</div>
+        <div class="field-value mono" id="infoLastBackup">—</div>
+      </div>
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.schedule">定期任务</div>
+        <div class="field-value mono" id="infoSchedule">—</div>
+      </div>
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.retention">备份保留策略</div>
+        <div class="field-value" id="infoRetention" data-i18n="backup.retention.never_delete">永不自动删除（手动管理）</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 定期任务 -->
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">⏰ <span data-i18n="backup.section.schedule">定期任务</span></h2>
+      <span class="section-meta" id="scheduleStatus">—</span>
+    </div>
+
+    <div class="schedule-grid">
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.enabled">启用</div>
+        <div class="field-value" id="scheduleEnabled">—</div>
+      </div>
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.hour">运行时间</div>
+        <div class="field-value" id="scheduleHour">—</div>
+      </div>
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.last_run">上次运行</div>
+        <div class="field-value mono" id="scheduleLastRun">—</div>
+      </div>
+      <div class="field">
+        <div class="field-label" data-i18n="backup.field.next_run">下次运行</div>
+        <div class="field-value mono" id="scheduleNextRun">—</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label class="form-checkbox">
+        <input type="checkbox" id="formEnabled">
+        <span data-i18n="backup.form.enable_schedule">启用定期备份</span>
+      </label>
+      <div class="form-group">
+        <label class="form-label" data-i18n="backup.form.hour">每日运行时间（0-23）</label>
+        <input type="number" class="form-input" id="formHour" min="0" max="23" value="3">
+      </div>
+      <button class="btn" id="btnSaveSchedule" data-i18n="backup.btn.save_schedule">保存设置</button>
+    </div>
+  </section>
+
+  <!-- 立即备份 -->
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">⚡ <span data-i18n="backup.section.manual">立即备份</span></h2>
+    </div>
+    <p style="color: var(--text-secondary); margin-bottom: 12px;" data-i18n="backup.manual.desc">点下方按钮立即创建一个压缩备份（约几秒）。在线热备不锁表，不影响 News 抓取。</p>
+    <div class="action-row">
+      <button class="btn" id="btnBackupNow" data-i18n="backup.btn.backup_now">立即备份</button>
+      <span class="section-meta" id="manualMeta">—</span>
+    </div>
+  </section>
+
+  <!-- 备份历史 -->
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">📦 <span data-i18n="backup.section.history">备份历史</span></h2>
+      <span class="section-meta" id="historyMeta">—</span>
+    </div>
+    <div class="action-row" style="margin-bottom: 12px;">
+      <button class="btn secondary" id="btnRefresh" data-i18n="backup.btn.refresh">刷新列表</button>
+    </div>
+    <div class="backup-list" id="backupList">
+      <div class="empty-msg" data-i18n="backup.empty">暂无备份</div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-dialog">
+    <div class="confirm-title" data-i18n="backup.confirm.title">⚠️ 确认恢复</div>
+    <div class="confirm-text" data-i18n="backup.confirm.text">恢复将 <strong>覆盖当前数据库</strong>。恢复前系统会自动备份当前 DB（命名为 pre_restore_*）以防出错。确认要恢复吗？</div>
+    <div class="confirm-actions">
+      <button class="btn secondary" id="btnCancel" data-i18n="backup.btn.cancel">取消</button>
+      <button class="btn danger" id="btnConfirm" data-i18n="backup.btn.confirm">确认恢复</button>
+    </div>
+  </div>
+</div>
+
+<script defer src="/static/shared-ui.js"></script>
+<script defer src="/static/backup.js"></script>
+</body>
+</html>

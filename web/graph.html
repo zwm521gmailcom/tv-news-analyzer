@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV News — 关系图谱</title>
+<style>
+:root {
+  --bg-primary:    #0d0e14;
+  --bg-card:       #12131e;
+  --bg-card-hover: #181928;
+  --bg-filter:     #0f1019;
+  --border:        rgba(113,50,245,0.15);
+  --border-card:   rgba(113,50,245,0.12);
+  --purple:        #7132f5;
+  --purple-dark:   #5741d8;
+  --green:         #149e61;
+  --red:           #e84040;
+  --yellow:        #f5a623;
+  --text-primary:  #ffffff;
+  --text-secondary:#9497a9;
+  --text-muted:    #5c5f75;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'IBM Plex Sans', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Top Bar */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(13,14,20,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.logo {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'IBM Plex Sans', Helvetica, Arial, sans-serif;
+  font-size: 18px; font-weight: 700;
+  letter-spacing: -0.5px; color: var(--text-primary);
+}
+.logo-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--purple) 0%, var(--purple-dark) 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.nav-links { display: flex; gap: 4px; }
+.nav-link { padding: 6px 14px; border-radius: 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; transition: all 0.2s; }
+.nav-link:hover { background: rgba(113,50,245,0.12); color: var(--purple); }
+.nav-link.active { background: rgba(113,50,245,0.12); color: var(--purple); }
+
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.clock { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.refresh-btn {
+  background: rgba(113,50,245,0.12); border: 1px solid var(--border);
+  color: var(--purple); border-radius: 12px;
+  padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.refresh-btn:hover { background: var(--purple); color: #fff; }
+
+/* Filter Bar */
+.filter-bar {
+  padding: 10px 24px;
+  background: var(--bg-filter);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.filter-group { display: flex; align-items: center; gap: 6px; }
+.filter-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.chip {
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border); cursor: pointer;
+  background: transparent; color: var(--text-secondary);
+  transition: all 0.15s; white-space: nowrap;
+}
+.chip:hover { border-color: var(--purple); color: var(--purple); }
+.chip.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+.filter-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.hours-select {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  border-radius: 12px; padding: 5px 10px;
+  color: var(--text-secondary); font-size: 12px; cursor: pointer;
+}
+.hours-select:focus { outline: none; border-color: var(--purple); }
+.legend {
+  display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--text-secondary);
+}
+.legend-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+
+/* Main Graph Area */
+.graph-container {
+  flex: 1;
+  height: calc(100vh - 110px);
+  position: relative;
+  overflow: hidden;
+}
+#graph {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, #1a1b2e 0%, #0d0e14 70%);
+}
+#graph svg { width: 100%; height: 100%; }
+
+/* Node Styles */
+.node {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.node:hover { opacity: 0.8; }
+.node-label {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 10px;
+  fill: var(--text-secondary);
+  pointer-events: none;
+  text-anchor: middle;
+}
+.edge {
+  stroke-opacity: 0.5;
+  transition: stroke-opacity 0.2s;
+}
+.edge:hover { stroke-opacity: 1; }
+
+/* Detail Panel */
+.detail-panel {
+  position: absolute;
+  right: 0; top: 0;
+  width: 380px;
+  height: 100%;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  z-index: 50;
+  overflow-y: auto;
+}
+.detail-panel.open { transform: translateX(0); }
+.detail-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.detail-title {
+  font-size: 14px; font-weight: 600;
+  color: var(--text-primary);
+}
+.detail-close {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  border: none; cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+.detail-close:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+.detail-body { padding: 16px 20px; }
+.detail-meta {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.detail-badge {
+  padding: 3px 8px; border-radius: 6px;
+  font-size: 11px; font-weight: 500;
+}
+.detail-badge.market-crypto { background: rgba(247,147,26,0.2); color: #f7931a; }
+.detail-badge.market-forex { background: rgba(14,165,233,0.2); color: #0ea5e9; }
+.detail-badge.market-futures { background: rgba(245,166,35,0.2); color: var(--yellow); }
+.detail-badge.market-index { background: rgba(20,158,97,0.2); color: var(--green); }
+.detail-badge.market-stock { background: rgba(113,50,245,0.2); color: var(--purple); }
+.detail-badge.market-economic { background: rgba(239,68,68,0.2); color: #ef4444; }
+.detail-badge.urgency-high { background: rgba(232,64,64,0.2); color: #e84040; }
+.detail-badge.urgency-medium { background: rgba(245,166,35,0.2); color: var(--yellow); }
+.detail-badge.urgency-normal { background: rgba(113,50,245,0.2); color: var(--purple); }
+.detail-time { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+.detail-headline {
+  font-size: 15px; font-weight: 600; line-height: 1.4;
+  color: var(--text-primary); margin-bottom: 16px;
+}
+.detail-symbols { margin-bottom: 16px; }
+.detail-symbols-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; }
+.detail-symbols-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.symbol-tag {
+  padding: 3px 8px; border-radius: 6px;
+  background: rgba(255,255,255,0.08);
+  font-size: 11px; color: var(--text-secondary);
+}
+.detail-provider { font-size: 12px; color: var(--text-muted); padding-top: 12px; border-top: 1px solid var(--border); }
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  max-width: 200px;
+  z-index: 100;
+}
+.tooltip.visible { opacity: 1; }
+.tooltip-title { font-weight: 600; margin-bottom: 4px; }
+.tooltip-meta { font-size: 11px; color: var(--text-muted); }
+
+/* Loading */
+.loading {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-muted); font-size: 14px;
+}
+
+/* Empty State */
+.empty-state {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center; color: var(--text-muted);
+}
+.empty-state-title { font-size: 16px; margin-bottom: 8px; color: var(--text-secondary); }
+.empty-state-desc { font-size: 13px; }
+
+/* Stats */
+.graph-stats {
+  position: absolute; bottom: 16px; left: 16px;
+  background: rgba(13,14,20,0.9);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  z-index: 10;
+}
+.graph-stats-num { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-right: 4px; }
+</style>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<script defer src="/static/shared-ui.js"></script>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-icon">📊</div>
+      <span>TV News</span>
+    </div>
+    <div class="nav-links">
+      <a href="/" class="nav-link">新闻</a>
+      <a href="/analytics" class="nav-link">统计</a>
+      <a href="/map" class="nav-link">地图</a>
+      <a href="/timeline" class="nav-link">时间线</a>
+      <a href="/graph" class="nav-link active">图谱</a>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="clock" id="clock"></div>
+    <button class="refresh-btn" onclick="loadGraph()">🔄 刷新</button>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="filter-group">
+    <span class="filter-label">时间</span>
+    <select class="hours-select" id="hoursSelect" onchange="loadGraph()">
+      <option value="0" selected>全部</option>
+      <option value="6">最近 6 小时</option>
+      <option value="12">最近 12 小时</option>
+      <option value="24">最近 24 小时</option>
+      <option value="48">最近 48 小时</option>
+      <option value="168">最近 7 天</option>
+    </select>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#f7931a"></div>市场</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>板块</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div>国家</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div>来源</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div>标的</div>
+  </div>
+</div>
+
+<!-- Graph Container -->
+<div class="graph-container">
+  <div id="graph"></div>
+  <div class="loading" id="loading">加载中...</div>
+  <div class="empty-state" id="emptyState" style="display:none">
+    <div class="empty-state-title">暂无图谱数据</div>
+    <div class="empty-state-desc">在筛选时间范围内没有找到关联数据</div>
+  </div>
+  <div class="graph-stats" id="graphStats">
+    <span class="graph-stats-num" id="nodeCount">0</span>节点
+    <span style="margin:0 8px;color:var(--border)">|</span>
+    <span class="graph-stats-num" id="edgeCount">0</span>边
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-header">
+    <span class="detail-title">新闻详情</span>
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tooltipTitle"></div>
+  <div class="tooltip-meta" id="tooltipMeta"></div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+// ── State ──────────────────────────────────────────────
+let graphData = { nodes: [], edges: [] };
+let simulation = null;
+
+// ── Colors ─────────────────────────────────────────────
+const MARKET_COLORS = {
+  crypto: '#f7931a',
+  forex: '#0ea5e9',
+  futures: '#f5a623',
+  index: '#149e61',
+  stock: '#7132f5',
+  economic: '#ef4444',
+  unknown: '#5c5f75',
+};
+
+const EDGE_COLORS = {
+  shared_market: '#f7931a',
+  shared_sector: '#a78bfa',
+  shared_country: '#fbbf24',
+  shared_provider: '#60a5fa',
+  shared_symbol: '#34d399',
+};
+
+// ── Init ───────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  updateClock();
+  setInterval(updateClock, 1000);
+  loadGraph();
+});
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ── Load Graph ────────────────────────────────────────
+async function loadGraph() {
+  const hours = document.getElementById('hoursSelect').value;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'none';
+
+  try {
+    const resp = await fetch(`/api/event_graph?hours=${hours}&limit=2000`);
+    const data = await resp.json();
+
+    graphData = data;
+
+    document.getElementById('nodeCount').textContent = data.nodes.length;
+    document.getElementById('edgeCount').textContent = data.edges.length;
+
+    if (data.nodes.length === 0) {
+      document.getElementById('emptyState').style.display = 'block';
+    }
+
+    renderGraph(data);
+  } catch (err) {
+    console.error('加载图谱失败:', err);
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+
+// ── Render Graph ──────────────────────────────────────
+function renderGraph(data) {
+  const container = document.getElementById('graph');
+  container.innerHTML = '';
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  const svg = d3.select('#graph')
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .call(d3.zoom().on('zoom', (event) => {
+      g.attr('transform', event.transform);
+    }));
+
+  const g = svg.append('g');
+
+  // Arrow markers for edge types
+  const markerDefs = svg.append('defs');
+  Object.keys(EDGE_COLORS).forEach(type => {
+    markerDefs.append('marker')
+      .attr('id', `arrow-${type}`)
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 20)
+      .attr('refY', 0)
+      .attr('markerWidth', 4)
+      .attr('markerHeight', 4)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('fill', EDGE_COLORS[type])
+      .attr('d', 'M0,-5L10,0L0,5');
+  });
+
+  // All nodes are news nodes
+  const nodes = data.nodes;
+  const edges = data.edges.map(e => ({
+    source: e.source,
+    target: e.target,
+    type: e.type,
+    confidence: e.confidence || 0.5,
+  }));
+
+  // Create node map for edge resolution
+  const nodeMap = {};
+  nodes.forEach(n => nodeMap[n.id] = n);
+
+  // Filter valid edges and resolve to node objects
+  const validEdges = edges.filter(e => nodeMap[e.source] && nodeMap[e.target]);
+  const resolvedEdges = validEdges.map(e => ({
+    source: nodeMap[e.source],
+    target: nodeMap[e.target],
+    type: e.type,
+    confidence: e.confidence,
+  }));
+
+  // Create simulation
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(resolvedEdges).id(d => d.id).distance(80).strength(0.5))
+    .force('charge', d3.forceManyBody().strength(-100))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(d => getNodeRadius(d) + 5));
+
+  // Draw edges
+  const edgeGroup = g.append('g').attr('class', 'edges');
+  const edge = edgeGroup.selectAll('.edge')
+    .data(resolvedEdges)
+    .join('line')
+    .attr('class', 'edge')
+    .attr('stroke', d => EDGE_COLORS[d.type] || '#5c5f75')
+    .attr('stroke-width', d => Math.max(0.5, d.confidence * 2.5))
+    .attr('stroke-opacity', 0.4)
+    .attr('marker-end', d => `url(#arrow-${d.type})`);
+
+  // Draw news nodes
+  const nodeGroup = g.append('g').attr('class', 'nodes');
+  const node = nodeGroup.selectAll('.node')
+    .data(nodes)
+    .join('circle')
+    .attr('class', 'node')
+    .attr('r', d => getNodeRadius(d))
+    .attr('fill', d => MARKET_COLORS[d.market] || MARKET_COLORS.unknown)
+    .attr('stroke', '#fff')
+    .attr('stroke-width', 1)
+    .attr('opacity', 0.85)
+    .call(d3.drag()
+      .on('start', dragstarted)
+      .on('drag', dragged)
+      .on('end', dragended));
+
+  // Labels (high urgency only)
+  const label = nodeGroup.selectAll('.node-label')
+    .data(nodes.filter(d => d.urgency >= 3))
+    .join('text')
+    .attr('class', 'node-label')
+    .text(d => {
+      if (d.symbols && d.symbols.length > 0) {
+        return d.symbols[0].split(':').pop();
+      }
+      return d.title.substring(0, 12) + '…';
+    })
+    .attr('font-size', '9px')
+    .attr('fill', '#9497a9')
+    .attr('text-anchor', 'middle')
+    .attr('dy', d => getNodeRadius(d) + 12);
+
+  // Node events
+  node.on('click', (event, d) => {
+    event.stopPropagation();
+    showDetail(d);
+  });
+
+  node.on('mouseover', (event, d) => {
+    const tooltip = document.getElementById('tooltip');
+    document.getElementById('tooltipTitle').textContent = (d.title || d.name || '未知节点').substring(0, 40);
+    const timeLabel = d.published
+      ? new Date(d.published * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      : '';
+    document.getElementById('tooltipMeta').textContent = `${d.market || 'unknown'} | ${d.provider || ''} | ${timeLabel}`;
+    tooltip.style.left = event.pageX + 10 + 'px';
+    tooltip.style.top = event.pageY + 10 + 'px';
+    tooltip.classList.add('visible');
+  });
+
+  node.on('mouseout', () => {
+    document.getElementById('tooltip').classList.remove('visible');
+  });
+
+  svg.on('click', () => closeDetail());
+
+  // Simulation tick
+  simulation.on('tick', () => {
+    edge
+      .attr('x1', d => d.source.x)
+      .attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x)
+      .attr('y2', d => d.target.y);
+
+    node
+      .attr('cx', d => d.x)
+      .attr('cy', d => d.y);
+
+    label
+      .attr('x', d => d.x)
+      .attr('y', d => d.y);
+  });
+
+  // Drag functions
+  function dragstarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+
+  function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+  }
+
+  function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+  }
+
+  // Initial zoom to fit
+  setTimeout(() => {
+    const bounds = g.node().getBBox();
+    if (!bounds.width) return;
+    const dx = bounds.width;
+    const dy = bounds.height;
+    const x = bounds.x + dx / 2;
+    const y = bounds.y + dy / 2;
+    const scale = Math.min(0.9, Math.min(width / dx, height / dy) * 0.8);
+    svg.transition().duration(500).call(
+      d3.zoom().transform,
+      d3.zoomIdentity.translate(width / 2 - x * scale, height / 2 - y * scale).scale(scale)
+    );
+  }, 1500);
+}
+
+function getNodeRadius(d) {
+  if (d.urgency === 3) return 10;
+  if (d.urgency === 2) return 7;
+  return 5;
+}
+
+// ── Detail Panel ──────────────────────────────────────
+function showDetail(d) {
+  const panel = document.getElementById('detailPanel');
+  const body = document.getElementById('detailBody');
+
+  const marketClass = `market-${d.market}`;
+  const urgencyClass = d.urgency >= 3 ? 'urgency-high' : (d.urgency === 2 ? 'urgency-medium' : 'urgency-normal');
+  const urgencyText = d.urgency >= 3 ? '高优' : (d.urgency === 2 ? '中优' : '普通');
+
+  const symbolsHtml = d.symbols && d.symbols.length > 0
+    ? `<div class="detail-symbols">
+         <div class="detail-symbols-label">关联标的</div>
+         <div class="detail-symbols-list">
+           ${d.symbols.map(s => `<span class="symbol-tag">${s}</span>`).join('')}
+         </div>
+       </div>`
+    : '';
+
+  body.innerHTML = `
+    <div class="detail-meta">
+      <span class="detail-badge ${marketClass}">${d.market || 'unknown'}</span>
+      <span class="detail-badge ${urgencyClass}">${urgencyText}</span>
+      ${d.is_flash ? '<span class="detail-badge urgency-high">快讯</span>' : ''}
+    </div>
+    <div class="detail-time">${d.published ? new Date(d.published * 1000).toLocaleString('zh-CN') : ''}</div>
+    <div class="detail-headline">${d.title}</div>
+    ${symbolsHtml}
+    <div class="detail-provider">来源: ${d.provider || '未知'}</div>
+  `;
+
+  panel.classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+}
+
+// ── Resize Handler ────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (graphData.nodes.length > 0) {
+    renderGraph(graphData);
+  }
+});
+</script>
+</body>
+</html>

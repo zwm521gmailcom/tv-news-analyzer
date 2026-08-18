@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TV News — 3D 图谱（优雅版）</title>
+<style>
+:root{--bg:#0d0e14;--card:#12131e;--muted:#9497a9;--border:rgba(113,50,245,0.12);} 
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:#fff;font-family:Inter,Helvetica,Arial,sans-serif;height:100vh;overflow:hidden}
+.topbar{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(13,14,20,0.9);border-bottom:1px solid var(--border)}
+.controls{display:flex;gap:12px;align-items:center}
+.select{background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:8px}
+#canvas{width:100%;height:calc(100vh - 110px);display:block}
+.panel{position:fixed;right:0;top:56px;width:380px;height:calc(100% - 56px);background:var(--card);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .25s}
+.panel.open{transform:translateX(0)}
+.panel .body{padding:16px;color:var(--muted);font-size:13px}
+.tooltip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--border);padding:8px;border-radius:8px;color:#fff;font-size:12px;opacity:0;transition:opacity .12s}
+.tooltip.visible{opacity:1}
+.legend{display:flex;gap:10px;align-items:center}
+.legend .dot{width:10px;height:10px;border-radius:50%}
+.stats{position:fixed;left:16px;bottom:16px;background:rgba(13,14,20,0.9);border:1px solid var(--border);padding:10px;border-radius:10px;color:var(--muted)}
+</style>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<script defer src="/static/shared-ui.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="font-weight:700">TV News 3D</div>
+      <div class="legend" style="margin-left:12px">
+        <div style="display:flex;align-items:center;gap:6px"><div class="dot" style="background:#f7931a"></div>市场</div>
+        <div style="display:flex;align-items:center;gap:6px"><div class="dot" style="background:#a78bfa"></div>板块</div>
+        <div style="display:flex;align-items:center;gap:6px"><div class="dot" style="background:#fbbf24"></div>国家</div>
+        <div style="display:flex;align-items:center;gap:6px"><div class="dot" style="background:#60a5fa"></div>来源</div>
+        <div style="display:flex;align-items:center;gap:6px"><div class="dot" style="background:#34d399"></div>标的</div>
+      </div>
+    </div>
+    <div class="controls">
+      <select id="hoursSelect" class="select">
+        <option value="0">全部</option><option value="6">6小时</option><option value="24">24小时</option><option value="168">7天</option>
+      </select>
+      <select id="layoutSelect" class="select">
+        <option value="sphere">球形</option>
+        <option value="market">按市场</option>
+        <option value="urgency">按紧急度</option>
+        <option value="time">时间</option>
+        <option value="time_spiral">时间螺旋</option>
+          <option value="concentric">同心环</option>
+        <option value="polar">极坐标扇区</option>
+        <option value="market_sector">市场扇区</option>
+        <option value="cluster">聚类</option>
+        <option value="force">力导向（3D）</option>
+      </select>
+      <button id="refreshBtn" class="select">刷新</button>
+      <div style="display:flex;gap:8px;align-items:center;margin-left:8px">
+        <label style="color:var(--muted);font-size:12px">最低置信</label>
+        <input id="minConfidence" type="range" min="0" max="1" step="0.05" value="0" style="width:120px" />
+        <label style="color:var(--muted);font-size:12px">最大节点</label>
+        <input id="maxNodes" type="number" min="100" max="8000" step="100" value="2000" style="width:90px;padding:6px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted)" />
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-left:8px">
+        <label style="color:var(--muted);font-size:12px">聚合展示</label>
+        <input id="aggToggle" type="checkbox" />
+        <select id="aggBySelect" class="select" style="width:110px">
+          <option value="market">按市场</option>
+          <option value="sector">按板块</option>
+          <option value="provider">按来源</option>
+          <option value="country">按国家</option>
+          <option value="symbol">按标的</option>
+        </select>
+        <label style="color:var(--muted);font-size:12px">按权重放大</label>
+        <input id="sizeByWeight" type="checkbox" />
+      </div>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+  <div id="tooltip" class="tooltip"></div>
+
+  <div id="detailPanel" class="panel" aria-hidden="true">
+    <div class="body" id="detailBody"></div>
+  </div>
+
+  <div class="stats" id="stats"><span id="nodeCount">0</span> 节点 · <span id="edgeCount">0</span> 边</div>
+
+  <script type="importmap">
+  {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+  </script>
+  <script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+  // 配色与常量
+  const MARKET_COLORS = { crypto:0xf7931a, forex:0x0ea5e9, futures:0xf5a623, index:0x149e61, stock:0x7132f5, economic:0xef4444, unknown:0x5c5f75 };
+  const EDGE_COLORS = { shared_market:0xf7931a, shared_sector:0xa78bfa, shared_country:0xfbbf24, shared_provider:0x60a5fa, shared_symbol:0x34d399, meta_co:0x9999ff };
+
+  // 状态
+  let graph = {nodes:[], edges:[]};
+  let scene, camera, renderer, controls, raycaster, mouse;
+  let nodeMeshes = [], edgeLines = [];
+  let hoveredMesh = null;
+  let forceSim = null; // simulation state when using force layout
+  let enabledEdgeTypes = new Set(Object.keys(EDGE_COLORS));
+  let minConfidence = 0;
+  let maxNodesLimit = 2000;
+  let aggEnabled = false;
+  let aggBy = 'market';
+  let sizeByWeight = false;
+  let metaExpanded = {}; // meta node id -> bool
+  let reloadDebounce = null;
+  const canvas = document.getElementById('canvas');
+
+  // 初始化场景
+  function initScene(){
+    scene = new THREE.Scene(); scene.background = new THREE.Color(0x0d0e14);
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-110), 0.1, 10000);
+    camera.position.set(0,0,900);
+    renderer = new THREE.WebGLRenderer({canvas, antialias:true}); renderer.setPixelRatio(Math.min(window.devicePixelRatio,2)); onResize();
+    controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor=0.08; controls.autoRotate=true; controls.autoRotateSpeed=0.15;
+    raycaster = new THREE.Raycaster(); mouse = new THREE.Vector2();
+    scene.add(new THREE.AmbientLight(0xffffff,0.5));
+    const p1=new THREE.PointLight(0x7132f5,0.8,3000);p1.position.set(300,300,300);scene.add(p1);
+    window.addEventListener('resize', onResize);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('click', onClick);
+    // start the main animation loop that advances force simulation when selected
+    animateLoop();
+  }
+
+  // 下载数据并渲染
+  async function loadGraph(){
+    const hours = document.getElementById('hoursSelect').value;
+    maxNodesLimit = parseInt(document.getElementById('maxNodes').value || 2000, 10);
+    minConfidence = parseFloat(document.getElementById('minConfidence').value || 0);
+    aggEnabled = !!document.getElementById('aggToggle').checked;
+    aggBy = document.getElementById('aggBySelect').value || 'market';
+    sizeByWeight = !!document.getElementById('sizeByWeight').checked;
+    const limit = maxNodesLimit;
+    const res = await fetch(`/api/event_graph?hours=${hours}&limit=${limit}`);
+    const data = await res.json();
+    graph = data;
+    document.getElementById('nodeCount').textContent = data.nodes.length;
+    document.getElementById('edgeCount').textContent = data.edges.length;
+    buildScene();
+  }
+  window.loadGraph = loadGraph;
+
+  // 清理旧对象
+  function clearScene(){
+    nodeMeshes.forEach(m=>scene.remove(m)); edgeLines.forEach(l=>scene.remove(l));
+    nodeMeshes = []; edgeLines = [];
+  }
+
+  // 布局器：根据选择生成位置
+  function layoutNodes(nodes, layout){
+    const out = [];
+    const n = nodes.length || 1;
+    const R = 420;
+    if(layout==='sphere'){
+      nodes.forEach((node,i)=>{ const phi=Math.acos(1-2*(i+0.5)/n); const theta=Math.PI*(1+Math.sqrt(5))*i; const r=R+(Math.random()-0.5)*80; out.push({...node, x:r*Math.sin(phi)*Math.cos(theta), y:r*Math.sin(phi)*Math.sin(theta), z:r*Math.cos(phi)});
+      });
+    } else if(layout==='market'){
+      const groups={}; nodes.forEach(nd=>{const k=nd.market||'unknown'; (groups[k]=groups[k]||[]).push(nd);});
+      const keys=Object.keys(groups); keys.forEach((k,gi)=>{ const angle=(gi/keys.length)*Math.PI*2; groups[k].forEach((nd,idx)=>{ const sub=100+Math.random()*80; out.push({...nd, x:Math.cos(angle)*420 + Math.cos(idx)*sub, y:(Math.random()-0.5)*220, z:Math.sin(angle)*420 + Math.sin(idx)*sub});});});
+    } else if(layout==='urgency'){
+      const layers={3:[],2:[],1:[],0:[]}; nodes.forEach(nd=>layers[Math.min(nd.urgency||1,3)].push(nd));
+      const radii={3:120,2:300,1:460,0:620};
+      Object.entries(layers).forEach(([lvl,arr])=>arr.forEach((nd,i)=>{ const phi=Math.acos(1-2*(i+0.5)/Math.max(arr.length,1)); const theta=(i*(1+Math.sqrt(5))%1)*Math.PI*2; const r=radii[lvl]+(Math.random()-0.5)*40; out.push({...nd,x:r*Math.sin(phi)*Math.cos(theta),y:r*Math.cos(phi),z:r*Math.sin(phi)*Math.sin(theta)}); }));
+    } else if(layout==='time'){
+      const sorted=[...nodes].sort((a,b)=>(a.published||0)-(b.published||0)); sorted.forEach((nd,i)=>{ const t=i/n; const angle=t*Math.PI*8; const radius=t*700+40; out.push({...nd,x:radius*Math.cos(angle),y:((i%20)/20-0.5)*420,z:radius*Math.sin(angle)});});
+    } else if(layout==='time_spiral'){
+      // 时间螺旋：按发布时间沿螺旋上升，适合展示时间演进
+      const sorted=[...nodes].sort((a,b)=>(a.published||0)-(b.published||0));
+      const turns = 6;
+      sorted.forEach((nd,i)=>{
+        const t = i / Math.max(1, sorted.length-1);
+        const angle = t * Math.PI * 2 * turns;
+        const radius = 60 + t * 620;
+        const y = (t - 0.5) * 520;
+        out.push({...nd, x: Math.cos(angle) * radius, y: y + ((Math.random()-0.5)*40), z: Math.sin(angle) * radius});
+      });
+    } else if(layout==='polar'){
+      // 极坐标扇区：按 market 分扇区，每个扇区内按属性分布
+      const groups={}; nodes.forEach(nd=>{ const k=nd.market||'unknown'; (groups[k]=groups[k]||[]).push(nd); });
+      const keys = Object.keys(groups);
+      keys.forEach((k,gi)=>{
+        const start = (gi/keys.length) * Math.PI * 2;
+        const span = (1/keys.length) * Math.PI * 2 * 0.9;
+        groups[k].forEach((nd,i)=>{
+          const frac = i / Math.max(1, groups[k].length-1);
+          const angle = start + frac * span;
+          const r = 120 + Math.pow(frac,0.8) * 520;
+          out.push({...nd, x: Math.cos(angle)*r, y:(Math.random()-0.5)*160, z: Math.sin(angle)*r});
+        });
+      });
+    } else if(layout==='market_sector'){
+      // 市场扇区：把每个 market 放入大圆的扇区，并在扇区内按 sector 分簇
+      const byMarket={}; nodes.forEach(n=>{ const m=n.market||'unknown'; (byMarket[m]=byMarket[m]||{}); const s=n.sector||'unknown'; (byMarket[m][s]=byMarket[m][s]||[]).push(n); });
+      const markets = Object.keys(byMarket);
+      markets.forEach((m,mi)=>{
+        const sectorKeys = Object.keys(byMarket[m]);
+        const baseAngle = (mi/markets.length) * Math.PI * 2;
+        sectorKeys.forEach((s,si)=>{
+          const seg = (si/Math.max(1,sectorKeys.length)) * (Math.PI*0.9/Math.max(1,sectorKeys.length));
+          const sectorRadius = 300 + mi * 20;
+          byMarket[m][s].forEach((nd,i)=>{
+            const a = baseAngle + seg + (Math.random()-0.5)*0.12;
+            const r = sectorRadius + (i%8)*28 + Math.random()*40;
+            out.push({...nd, x:Math.cos(a)*r, y:(Math.random()-0.5)*180, z:Math.sin(a)*r});
+          });
+        });
+      });
+    } else if(layout==='concentric'){
+      // concentric rings by urgency (inner=高紧急度)。更好的分布感用于展示聚合权重与新闻粒度
+      const layers = {3:[],2:[],1:[],0:[]}; nodes.forEach(nd=>{ const u = Math.min(nd.urgency||1,3); layers[u].push(nd); });
+      const radii = {3:80,2:220,1:400,0:580};
+      Object.entries(layers).forEach(([lvl,arr])=>{
+        const r = radii[lvl] + (Math.random()-0.5)*20;
+        arr.forEach((nd,i)=>{ const ang = (i/Math.max(1,arr.length)) * Math.PI * 2; const jitter = (Math.random()-0.5)*40; out.push({...nd, x:(r+jitter)*Math.cos(ang), y:(Math.random()-0.5)*120, z:(r+jitter)*Math.sin(ang)}); });
+      });
+    } else if(layout==='cluster'){
+      const clusters={}; graph.edges.forEach(e=>{ (clusters[e.type]=clusters[e.type]||new Set()).add(e.source); (clusters[e.type]|| new Set()).add(e.target);});
+      const map={}; let ci=0; for(const k in clusters){ clusters[k].forEach(id=>map[id]=ci); ci++; }
+      nodes.forEach((nd,i)=>{ const c=map[nd.id]||-1; const angle=(i/n)*Math.PI*2; const cr=c===-1?700:200+ (c*80); const rr=80+Math.random()*60; out.push({...nd,x:cr*Math.cos(angle)+rr*Math.cos(i),y:(Math.random()-0.5)*160,z:cr*Math.sin(angle)+rr*Math.sin(i), cluster:c});});
+    } else { return layoutNodes(nodes,'sphere'); }
+    return out;
+  }
+
+  // 根据 graph 构建 Three 对象
+  function buildScene(){
+    clearScene();
+    // apply client-side filters
+    const allNodes = graph.nodes || [];
+    const nodes = allNodes.slice(0, maxNodesLimit);
+    const edges = (graph.edges || []).filter(e => {
+      if (!enabledEdgeTypes.has(e.type)) return false;
+      if ((e.confidence || 0) < minConfidence) return false;
+      return true;
+    });
+    const layout = document.getElementById('layoutSelect').value || 'sphere';
+
+    // 聚合展示模式：生成 meta 节点（分类）并把新闻作为小颗粒围绕其周围
+    let positioned = [];
+    let renderedEdges = [];
+    if (aggEnabled) {
+      // build meta groups (count + summed urgency weight)
+      const metaMap = {};
+      const nodeToMeta = {};
+      nodes.forEach(n => {
+        let key;
+        if (aggBy === 'symbol') {
+          key = (n.symbols && n.symbols.length>0) ? n.symbols[0] : 'unknown';
+        } else {
+          key = n[aggBy] || 'unknown';
+        }
+        if (!metaMap[key]) metaMap[key] = { id: `meta:${aggBy}:${key}`, key, count: 0, members: [], sumUrgency: 0 };
+        metaMap[key].count++;
+        metaMap[key].members.push(n);
+        metaMap[key].sumUrgency += (n.urgency || 1);
+        nodeToMeta[n.id] = metaMap[key].id;
+      });
+
+      const metaNodes = Object.values(metaMap);
+      // position meta nodes on a circle
+      metaNodes.forEach((m,i) => {
+        const angle = (i / Math.max(1, metaNodes.length)) * Math.PI * 2;
+        const r = 380;
+        m.x = r * Math.cos(angle);
+        m.y = (Math.random() - 0.5) * 140;
+        m.z = r * Math.sin(angle);
+      });
+
+      // compute meta-meta connectivity from original edges
+      const metaPairCount = {};
+      (graph.edges||[]).forEach(e=>{
+        const aMeta = nodeToMeta[e.source];
+        const bMeta = nodeToMeta[e.target];
+        if (!aMeta || !bMeta) return;
+        if (aMeta === bMeta) return;
+        const key = aMeta < bMeta ? `${aMeta}||${bMeta}` : `${bMeta}||${aMeta}`;
+        metaPairCount[key] = (metaPairCount[key]||0) + 1;
+      });
+
+      // for each meta node, either show collapsed meta node or expand members
+      metaNodes.forEach(m => {
+        const expanded = !!metaExpanded[m.id];
+        // meta visual weight combines count and summed urgency
+        const weight = m.count + Math.sqrt(m.sumUrgency||0);
+        m._weight = weight;
+        // push meta node
+        positioned.push({ id: m.id, meta: true, key: m.key, count: m.count, market: m.key, x: m.x, y: m.y, z: m.z, weight });
+        if (expanded) {
+          const slotRadius = 40 + Math.min(m.count * 1.5, 240);
+          m.members.forEach((n, idx) => {
+            const theta = (idx / Math.max(1, m.members.length)) * Math.PI * 2;
+            const nx = m.x + Math.cos(theta) * (slotRadius + Math.random() * 20);
+            const ny = m.y + (Math.random() - 0.5) * 40;
+            const nz = m.z + Math.sin(theta) * (slotRadius + Math.random() * 20);
+            // clone node positioning without mutating original node coordinates
+            const nn = Object.assign({}, n, { x: nx, y: ny, z: nz });
+            positioned.push(nn);
+            // add meta->news edge
+            renderedEdges.push({ source: m.id, target: nn.id, type: 'meta_link', confidence: 0.6 });
+          });
+        }
+      });
+
+      // add meta-meta edges
+      Object.entries(metaPairCount).forEach(([k,cnt])=>{
+        const [aId,bId] = k.split('||');
+        // confidence normalized by sqrt of counts to avoid extreme values
+        const conf = Math.min(0.95, cnt / Math.max(1, Math.sqrt(nodes.length)) );
+        renderedEdges.push({ source: aId, target: bId, type: 'meta_co', confidence: conf });
+      });
+    } else {
+      positioned = layoutNodes(nodes, layout);
+      // normal news-news edges
+      const posMapTmp = {};
+      positioned.forEach(p => posMapTmp[p.id] = p);
+      renderedEdges = edges.filter(e => posMapTmp[e.source] && posMapTmp[e.target]);
+    }
+
+    const posMap = {};
+    positioned.forEach(p=>posMap[p.id]=p);
+
+    // edges (renderedEdges already prepared)
+    renderedEdges.forEach(e=>{
+      const a = posMap[e.source];
+      const b = posMap[e.target];
+      if (!a || !b) return;
+      const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.x,a.y,a.z), new THREE.Vector3(b.x,b.y,b.z)]);
+      const mat = new THREE.LineBasicMaterial({ color: EDGE_COLORS[e.type] || 0x5c5f75, transparent:true, opacity: Math.min((e.confidence||0.5)*0.9,0.8) });
+      const line = new THREE.Line(geom, mat);
+      line.userData = line.userData || {};
+      line.userData._edgeMeta = [e.source, e.target];
+      scene.add(line); edgeLines.push(line);
+    });
+
+    // nodes
+    const baseGeo = new THREE.SphereGeometry(1, 12, 12);
+    positioned.forEach(p=>{
+      // meta nodes (aggregated categories)
+      if (p.meta) {
+        const col = (MARKET_COLORS[p.market]||MARKET_COLORS.unknown) || 0x7132f5;
+        const count = p.count || 1;
+        const weightSize = sizeByWeight ? Math.log1p(count) * 12 : 12 + Math.min(count, 60) * 0.25;
+        const mat = new THREE.MeshPhongMaterial({color:col, emissive:col, emissiveIntensity:0.25});
+        const mesh = new THREE.Mesh(baseGeo, mat);
+        mesh.position.set(p.x,p.y,p.z);
+        mesh.scale.setScalar(weightSize);
+        mesh.userData = { node: { id: p.id, title: `${p.key} (${count})`, count }, originalSize: weightSize, isMeta: true };
+        scene.add(mesh); nodeMeshes.push(mesh);
+        // meta nodes have subtle glow
+        const glow = new THREE.Mesh(new THREE.RingGeometry(weightSize+3,weightSize+6,32), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.14, side:THREE.DoubleSide}));
+        glow.position.set(p.x,p.y,p.z); glow.lookAt(camera.position); scene.add(glow); nodeMeshes.push(glow); glow.userData = { node: p, isPulse:true };
+        return;
+      }
+
+      // news nodes (small granular)
+      const col = (MARKET_COLORS[p.market]||MARKET_COLORS.unknown);
+      const symbolBonus = Math.min((p.symbols?.length||0) * 0.6, 4);
+      const urgencyBonus = Math.pow((p.urgency || 1), 1.1) * 1.8;
+      const baseSize = 2.2; // keep news small
+      const size = baseSize + urgencyBonus * 0.6 + symbolBonus * 0.6;
+      const mat = new THREE.MeshPhongMaterial({color:col, emissive:col, emissiveIntensity:0.2});
+      const mesh = new THREE.Mesh(baseGeo, mat);
+      mesh.position.set(p.x,p.y,p.z);
+      mesh.scale.setScalar(size);
+      mesh.userData = { node: p, originalSize: size };
+      scene.add(mesh); nodeMeshes.push(mesh);
+      if((p.urgency||1)>=3){
+        const glow = new THREE.Mesh(new THREE.RingGeometry(size+1.6,size+3.2,32), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.18, side:THREE.DoubleSide}));
+        glow.position.set(p.x,p.y,p.z); glow.lookAt(camera.position); scene.add(glow); nodeMeshes.push(glow); glow.userData = {node:p, isPulse:true};
+      }
+    });
+
+    // if using force layout, initialize simple 3D force simulation state
+    if (layout === 'force') {
+      startForceSimulation(positioned, edges);
+    } else {
+      forceSim = null;
+    }
+  }
+
+  // Simple 3D force simulation (approximate)
+  function startForceSimulation(nodes, edges) {
+    // nodes: positioned nodes with x,y,z, id
+    // edges: filtered edges
+    forceSim = { nodes: nodes.map(n=>({id:n.id,x:n.x,y:n.y,z:n.z,vx:0,vy:0,vz:0})), edges: edges.map(e=>({source:e.source,target:e.target, length:120})) };
+  }
+
+  function simulationStep() {
+    if (!forceSim) return;
+    const nodes = forceSim.nodes;
+    const edges = forceSim.edges;
+    const linkK = 0.02; // spring strength
+    const charge = 10000; // repulsion factor
+    const damping = 0.85;
+
+    // link forces
+    edges.forEach(e=>{
+      const a = nodes.find(n=>n.id===e.source);
+      const b = nodes.find(n=>n.id===e.target);
+      if (!a || !b) return;
+      let dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+      let dist = Math.sqrt(dx*dx + dy*dy + dz*dz) + 0.0001;
+      let diff = dist - e.length;
+      let f = linkK * diff;
+      let ux = dx/dist, uy = dy/dist, uz = dz/dist;
+      a.vx += ux * f;
+      a.vy += uy * f;
+      a.vz += uz * f;
+      b.vx -= ux * f;
+      b.vy -= uy * f;
+      b.vz -= uz * f;
+    });
+
+    // approximate repulsion: sample neighbors to reduce O(n^2)
+    const sampleCount = Math.min(40, Math.ceil(nodes.length/50));
+    nodes.forEach((n, i) => {
+      for (let s=0; s<sampleCount; s++){
+        const j = (i + 1 + Math.floor(Math.random()*(nodes.length-1))) % nodes.length;
+        const m = nodes[j];
+        let dx = n.x - m.x, dy = n.y - m.y, dz = n.z - m.z;
+        let d2 = dx*dx + dy*dy + dz*dz + 0.0001;
+        let f = charge / d2;
+        let inv = 1/Math.sqrt(d2);
+        n.vx += dx * inv * f * 0.00002;
+        n.vy += dy * inv * f * 0.00002;
+        n.vz += dz * inv * f * 0.00002;
+      }
+    });
+
+    // integrate
+    nodes.forEach(n=>{
+      n.vx *= damping; n.vy *= damping; n.vz *= damping;
+      n.x += n.vx; n.y += n.vy; n.z += n.vz;
+    });
+
+    // update actual meshes positions
+    nodeMeshes.forEach(mesh => {
+      const id = mesh.userData.node.id;
+      const simNode = forceSim.nodes.find(n=>n.id===id);
+      if (simNode) mesh.position.set(simNode.x, simNode.y, simNode.z);
+    });
+    edgeLines.forEach(line => {
+      const geom = line.geometry;
+      const positions = geom.attributes.position.array;
+      // positions are 6 floats: ax,ay,az,bx,by,bz
+      // find corresponding ids from userData? we didn't store per-line mapping to edges to keep code small
+      // As a pragmatic approach, rebuild edges positions each step from posMap if available
+    });
+  }
+
+  // 鼠标与交互
+  function onMouseMove(evt){
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((evt.clientX-rect.left)/rect.width)*2-1;
+    mouse.y = -((evt.clientY-rect.top)/rect.height)*2+1;
+    raycaster.setFromCamera(mouse,camera);
+    const hits = raycaster.intersectObjects(nodeMeshes.filter(m=>m.type==='Mesh'));
+    const tooltip = document.getElementById('tooltip');
+      if(hits.length){
+      const n = hits[0].object.userData.node;
+      tooltip.classList.add('visible'); tooltip.style.left = (evt.clientX+12)+'px'; tooltip.style.top = (evt.clientY+12)+'px';
+      tooltip.innerHTML = `<div style="font-weight:600">${(n.title||'未知').slice(0,60)}</div><div style="color:#aaa;margin-top:6px">${n.provider||''} · ${n.market||'unknown'}</div>`;
+      if(hoveredMesh && hoveredMesh!==hits[0].object) hoveredMesh.scale.setScalar(hoveredMesh.userData.originalSize || hoveredMesh.userData.size || 4);
+      hoveredMesh = hits[0].object; hoveredMesh.scale.setScalar((hoveredMesh.userData.originalSize || hoveredMesh.userData.size || 4) * 1.45);
+      canvas.style.cursor='pointer';
+    } else {
+      tooltip.classList.remove('visible'); if(hoveredMesh) hoveredMesh.scale.setScalar(hoveredMesh.userData.originalSize || hoveredMesh.userData.size || 4); hoveredMesh=null; canvas.style.cursor='grab';
+    }
+  }
+
+  function onClick(){
+    if(!hoveredMesh || !hoveredMesh.userData || !hoveredMesh.userData.node) return;
+    const nd = hoveredMesh.userData.node;
+    // toggle meta expand/collapse when clicking a meta node
+    if (hoveredMesh.userData.isMeta || (nd && nd.meta)) {
+      const id = nd.id || nd.node && nd.node.id || null;
+      if (id) {
+        metaExpanded[id] = !metaExpanded[id];
+        buildScene();
+        return;
+      }
+    }
+    showDetail(nd);
+  }
+
+  function showDetail(d){ const panel=document.getElementById('detailPanel'); const body=document.getElementById('detailBody'); panel.classList.add('open'); panel.setAttribute('aria-hidden','false'); body.innerHTML = `<div style="font-weight:700;color:#fff">${d.title}</div><div style="color:#999;margin-top:8px">${d.provider||'未知'} · ${d.market||'unknown'}</div><div style="margin-top:10px;color:#ddd">${d.summary||''}</div><div style="margin-top:12px;color:#aaa">发布时间：${d.published?new Date(d.published*1000).toLocaleString():'-'}</div>`; }
+  window.closeDetail = ()=>{ document.getElementById('detailPanel').classList.remove('open'); document.getElementById('detailPanel').setAttribute('aria-hidden','true'); };
+
+  // 渲染循环
+  function animate(){ requestAnimationFrame(animate); nodeMeshes.forEach(m=>{ if(m.userData?.isPulse){ const s=1+Math.sin(Date.now()*0.003)*0.12; m.scale.setScalar((m.userData.size||4)*s); }}); controls && controls.update(); renderer && scene && camera && renderer.render(scene,camera); }
+
+  // 每帧如果使用 force 布局则推进仿真
+  function animateLoop(){
+    requestAnimationFrame(animateLoop);
+    if (document.getElementById('layoutSelect').value === 'force' && forceSim) {
+      // run a few iterations to make it converge faster
+      for (let k=0;k<2;k++) simulationStep();
+      // update edges (recreate positions)
+      edgeLines.forEach((line, idx)=>{
+        const geom = line.geometry;
+        if (!geom || !geom.attributes || !geom.attributes.position) return;
+        const pos = geom.attributes.position.array;
+        // we stored edge endpoints in userData when building
+        const meta = line.userData && line.userData._edgeMeta;
+        if (!meta) return;
+        const a = forceSim.nodes.find(n=>n.id===meta[0]);
+        const b = forceSim.nodes.find(n=>n.id===meta[1]);
+        if (!a || !b) return;
+        pos[0]=a.x; pos[1]=a.y; pos[2]=a.z; pos[3]=b.x; pos[4]=b.y; pos[5]=b.z;
+        geom.attributes.position.needsUpdate = true;
+      });
+      // update node meshes handled in simulationStep
+    }
+    // pulse and render
+    nodeMeshes.forEach(m=>{ if(m.userData?.isPulse){ const s=1+Math.sin(Date.now()*0.003)*0.12; m.scale.setScalar((m.userData.size||4)*s); }});
+    controls && controls.update(); renderer && scene && camera && renderer.render(scene,camera);
+  }
+
+  function onResize(){ if(renderer&&camera){ camera.aspect = window.innerWidth/(window.innerHeight-110); camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight-110); } }
+
+  // 事件绑定：控件
+  document.getElementById('refreshBtn').addEventListener('click', loadGraph);
+  document.getElementById('layoutSelect').addEventListener('change', ()=>{ buildScene(); });
+  document.getElementById('hoursSelect').addEventListener('change', loadGraph);
+  document.getElementById('aggToggle').addEventListener('change', ()=>{ loadGraph(); });
+  document.getElementById('aggBySelect').addEventListener('change', ()=>{ loadGraph(); });
+  document.getElementById('sizeByWeight').addEventListener('change', ()=>{ buildScene(); });
+  // 使最低置信滑块实时生效，并在最大节点修改时重新拉取数据
+  document.getElementById('minConfidence').addEventListener('input', (e)=>{ minConfidence = parseFloat(e.target.value || 0); buildScene(); });
+  // debounce reload when maxNodes is changing
+  document.getElementById('maxNodes').addEventListener('input', (e)=>{ const v=parseInt(e.target.value||2000,10); maxNodesLimit=v; if(reloadDebounce) clearTimeout(reloadDebounce); reloadDebounce = setTimeout(()=>{ loadGraph(); }, 450); });
+
+  // init
+  initScene();
+  loadGraph();
+  </script>
+</body>
+</html>
