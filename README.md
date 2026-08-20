@@ -251,6 +251,37 @@ tv-news-analyzer/
 
 ---
 
+## 🔐 隐私与安全
+
+**你的凭证不会被本项目推到 GitHub。**
+
+`.gitignore` 严格排除以下敏感文件：
+
+| 文件 | 风险 | 已排除 |
+|------|------|------|
+| `.env` | 你的 `MINIMAX_API_KEY` + TradingView cookies + 代理 | ✅ |
+| `data/cookies.txt` | TradingView 登录凭证（sessionid / device_t / sp 等） | ✅ |
+| `data/cookies.json` | Cookie 缓存（自动生成） | ✅ |
+| `data/*.db` | SQLite 数据库（含你抓取的所有新闻） | ✅ |
+| `backups/*.db.gz` | 手动备份的数据库压缩包 | ✅ |
+| `logs/*.log` | 运行日志（可能含 URL / cookie） | ✅ |
+
+**代码审计结果**（最近一次 commit `42cdeee`）：
+- ✅ 真实 `MINIMAX_API_KEY`（`sk-cp-8sE86de...`）在所有 git 历史 = **0 命中**
+- ✅ 真实 TradingView sessionid 在所有 git 历史 = **0 命中**
+- ✅ `tests/` 中的 cookie 字段都是 fake fixture（`abc123` / `xyz789`）
+- ✅ Release assets 只含 10 张 PNG 截图（无 .env / .db / .log）
+- ✅ API key 在 Web UI 中只显示 mask 形式（`sk-c…uqkM` 共 125 字符）
+
+**`.env.example` 是干净的占位符模板**，所有真实值都从你的本地 `.env` 读取，**永远不会**出现在仓库里。
+
+**如果你怀疑 key 泄露了**：
+1. 立即去 [MiniMax 控制台](https://api.minimaxi.com) 轮换 API key
+2. 重新登录 TradingView 刷新 cookies
+3. `git log --all -p | grep "sk-cp-"` 验证历史 commit 没泄露（应该 0 匹配）
+
+---
+
 ## ⚙️ 配置说明（.env）
 
 ### 核心开关
