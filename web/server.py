@@ -73,11 +73,13 @@ def api_stats():
         latest = db.execute(
             "SELECT published FROM raw_news ORDER BY published DESC LIMIT 1"
         ).fetchone()
+        db_total = db.execute("SELECT COUNT(*) FROM raw_news").fetchone()[0]
     finally:
         db.close()
 
     return jsonify({
         "total":       total,
+        "db_total":    db_total,
         "by_lang":     {r["lang"]: r["n"] for r in lang_rows},
         "by_market":   {r["market"]: r["n"] for r in market_rows},
         "by_sector":   {r["sector"]: r["n"] for r in sector_rows},
@@ -783,6 +785,140 @@ def api_generate_global():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/global_narrative/history")
+def api_global_narrative_history():
+    """返回全局叙事历史（最近 N 条）—— 用于追溯连续性"""
+    limit = int(request.args.get("limit", 10))
+
+    db = get_db()
+    try:
+        # 用 PRAGMA 检查是否有 references_history_ids 列
+        cols = [r["name"] for r in db.execute("PRAGMA table_info(global_narratives)").fetchall()]
+        has_refs = "references_history_ids" in cols
+
+        select_cols = "id, generated_at, lookback_hours, news_count, global_view, insights, computed_by"
+        if has_refs:
+            select_cols += ", references_history_ids"
+
+        rows = db.execute(
+            f"""SELECT {select_cols}
+                FROM global_narratives
+                ORDER BY generated_at DESC
+                LIMIT ?""",
+            (limit,)
+        ).fetchall()
+
+        history = []
+        for r in rows:
+            try:
+                gv = json.loads(r["global_view"] or "[]")
+            except Exception:
+                gv = []
+            try:
+                ins = json.loads(r["insights"] or "[]")
+            except Exception:
+                ins = []
+            try:
+                refs = json.loads(r["references_history_ids"]) if has_refs and r["references_history_ids"] else []
+            except Exception:
+                refs = []
+            # 提取每个 viewpoint 的 theme（用于 list 显示）
+            themes = []
+            if isinstance(gv, list):
+                for v in gv[:5]:
+                    if isinstance(v, dict):
+                        themes.append(v.get("theme", "")[:60])
+            history.append({
+                "id": r["id"],
+                "generated_at": r["generated_at"],
+                "lookback_hours": r["lookback_hours"],
+                "news_count": r["news_count"],
+                "computed_by": r["computed_by"],
+                "themes": themes,
+                "first_theme": themes[0] if themes else "(无主题)",
+                "insight_count": len(ins) if isinstance(ins, list) else 0,
+                "references_history_ids": refs,
+            })
+
+        return jsonify({
+            "ok": True,
+            "count": len(history),
+            "history": history,
+        })
+    finally:
+        db.close()
+
+
+# ── Period Insights API（多周期 AI 洞察 + 多空板块） ─────────
+@app.route("/api/insights/period", methods=["GET"])
+def api_insights_period_get():
+    """读周期洞察（缓存优先）。period=daily|3day|weekly|monthly"""
+    period = request.args.get("period", "daily")
+    import asyncio
+    from pipeline.period_insights import get_period_insight
+    try:
+        result = asyncio.run(get_period_insight(period, force_regenerate=False))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/insights/period/all", methods=["GET"])
+def api_insights_period_all():
+    """一次返回 4 个周期"""
+    import asyncio
+    from pipeline.period_insights import get_all_periods
+    try:
+        result = asyncio.run(get_all_periods())
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/insights/generate", methods=["POST"])
+def api_insights_generate():
+    """手动触发重新生成某个周期。period=daily|3day|weekly|monthly"""
+    period = request.args.get("period", "daily")
+    import asyncio
+    from pipeline.period_insights import get_period_insight
+    try:
+        result = asyncio.run(get_period_insight(period, force_regenerate=True))
+        if result.get("ok"):
+            return jsonify(result)
+        return jsonify(result), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/insights/history", methods=["GET"])
+def api_insights_history():
+    """历史洞察列表。period=daily|3day|weekly|monthly（不传则全部）&limit=N"""
+    period = request.args.get("period")
+    limit = int(request.args.get("limit", 20))
+    import asyncio
+    from pipeline.period_insights import get_period_history
+    try:
+        result = asyncio.run(get_period_history(period, limit))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/insights/compare", methods=["GET"])
+def api_insights_compare():
+    """对比最新 vs 上一期（连续性 diff）。period=daily|3day|weekly|monthly"""
+    period = request.args.get("period", "daily")
+    import asyncio
+    from pipeline.period_insights import get_period_compare
+    try:
+        result = asyncio.run(get_period_compare(period))
+        if not result.get("ok"):
+            return jsonify(result), 400 if "error" in result and result.get("error") != "no_history" else 200
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ── Pages ─────────────────────────────────────────────────
 
 @app.route("/")
@@ -820,6 +956,10 @@ def backup_page():
 @app.route("/config/backfill")
 def backfill_config_page():
     return send_from_directory(WEB_DIR, "config_backfill.html")
+
+@app.route("/history")
+def history_page():
+    return send_from_directory(WEB_DIR, "history.html")
 
 def _free_port(port: int):
     """如果端口被占用，先杀掉占用进程"""
@@ -1215,6 +1355,88 @@ def api_backfill_stop():
     _backfill_state["status"] = "stopped"
     _backfill_state["ended_at"] = datetime.now().isoformat(timespec="seconds")
     return jsonify({"ok": True})
+
+
+# ── API: AI 管理状态（只读 — 永不出 API key 原值）─────────
+@app.route("/api/system/ai_status")
+def api_system_ai_status():
+    """AI 洞察管理的实时状态（前端 /system + /config/backfill 共用）。
+
+    安全：永远不返回 API key 原值。只返回是否已配置 + 长度 + 来源描述。
+    """
+    api_key = (_settings.MINIMAX_API_KEY or "").strip()
+    api_key_set = bool(api_key)
+    # 仅暴露长度和首/末 4 位掩码（便于用户确认是同一把 key）
+    api_key_masked = None
+    if api_key_set and len(api_key) >= 8:
+        api_key_masked = f"{api_key[:4]}…{api_key[-4:]}（共 {len(api_key)} 字符）"
+    elif api_key_set:
+        api_key_masked = f"（共 {len(api_key)} 字符）"
+
+    # period_insights: 每周期最近一次生成时间
+    periods = {}
+    try:
+        db = get_db()
+        for period in ("daily", "3day", "weekly", "monthly"):
+            row = db.execute(
+                """SELECT generated_at, period_start, news_count, computed_by
+                   FROM period_insights
+                   WHERE period = ?
+                   ORDER BY generated_at DESC LIMIT 1""",
+                (period,),
+            ).fetchone()
+            if row:
+                periods[period] = {
+                    "generated_at": int(row["generated_at"]),
+                    "period_start": int(row["period_start"]),
+                    "news_count":   int(row["news_count"]),
+                    "provider":     row["computed_by"],
+                }
+            else:
+                periods[period] = None
+    except Exception:
+        pass
+
+    # global_narratives: 最近一次
+    last_global = None
+    try:
+        db = get_db()
+        # 先看 columns
+        cols = [r["name"] for r in db.execute("PRAGMA table_info(global_narratives)").fetchall()]
+        # 尝试几个可能的列名
+        gen_col = "generated_at" if "generated_at" in cols else ("ts" if "ts" in cols else None)
+        prov_col = "computed_by" if "computed_by" in cols else ("provider" if "provider" in cols else None)
+        if gen_col:
+            sql = f"SELECT {gen_col} AS ga"
+            if prov_col: sql += f", {prov_col} AS prov"
+            sql += " FROM global_narratives"
+            sql += f" ORDER BY {gen_col} DESC LIMIT 1"
+            row = db.execute(sql).fetchone()
+            if row:
+                last_global = {"generated_at": int(row["ga"])}
+                if prov_col and row["prov"]:
+                    last_global["provider"] = row["prov"]
+    except Exception:
+        pass
+
+    # 解析 .env 文件路径（供前端展示「修改位置」提示）
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env_path = os.path.join(project_root, ".env")
+    env_exists = os.path.exists(env_path)
+
+    return jsonify({
+        "provider":        "MiniMax",
+        "model":           _settings.MINIMAX_MODEL,
+        "base_url":        _settings.MINIMAX_BASE_URL,
+        "api_key_set":     api_key_set,
+        "api_key_masked":  api_key_masked,
+        "api_key_source":  ".env (MINIMAX_API_KEY)",
+        "api_key_path":    env_path,
+        "env_exists":      env_exists,
+        "periods":         periods,
+        "last_global_narrative": last_global,
+        "note":            "API key 配置在 .env 文件，修改后需重启 News/Web 服务才能生效。",
+    })
 
 
 if __name__ == "__main__":

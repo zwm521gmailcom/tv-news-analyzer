@@ -9,11 +9,6 @@ from pipeline.orchestrator import Orchestrator
 from display.console import ConsoleDisplay
 
 
-def _get_current_hour_bucket() -> int:
-    """获取当前小时桶（Unix 时间戳截断到小时）"""
-    return (int(time.time()) // 3600) * 3600
-
-
 class Scheduler:
     """新闻轮询调度器"""
 
@@ -77,37 +72,44 @@ class Scheduler:
         print(f"[Scheduler] 单次完成，获取 {len(news_list)} 条，新增 {inserted} 条")
 
     async def _hourly_ai_loop(self):
-        """每小时末运行 AI 叙事生成"""
-        last_hour_bucket = _get_current_hour_bucket()
-        last_global_run = 0  # 上次全局叙事生成的时间戳
+        """
+        AI 叙事生成调度：
+        - 每 6 小时：全局叙事（24h 窗口）
+        - 每天 04:00：4 个周期洞察（daily / 3day / weekly / monthly）+ 板块预测
+        - Ollama ai_narrator 已废弃，hour 粒度叙事不再生成
+        """
+        last_global_run = 0  # 上次全局叙事时间戳
+        last_period_run_date = None  # 上次跑周期洞察的日期（YYYY-MM-DD）
 
         while not self._stop_event.is_set():
-            current_hour = _get_current_hour_bucket()
             now = int(time.time())
+            today_str = time.strftime("%Y-%m-%d", time.localtime(now))
+            current_hour = int(time.strftime("%H", time.localtime(now)))
 
-            if current_hour > last_hour_bucket:
-                # 新的一小时开始了，生成上一小时的 AI 叙事
-                hour_to_process = last_hour_bucket
-                print(f"[Scheduler] 检测到新小时 {time.strftime('%Y-%m-%d %H:00', time.localtime(hour_to_process))}，触发 AI 叙事生成...")
+            # 每 6 小时跑全局叙事
+            if now - last_global_run >= 6 * 3600:
+                print(f"[Scheduler] 触发全局叙事生成...")
                 try:
-                    from pipeline.ai_narrator import run_hourly_ai
-                    await run_hourly_ai(hour_to_process)
-                    print(f"[Scheduler] AI 叙事生成完成")
+                    from pipeline.global_narrative import run_global_narrative
+                    await run_global_narrative(lookback_hours=24)
+                    last_global_run = now
+                    print(f"[Scheduler] 全局叙事生成完成")
                 except Exception as e:
-                    print(f"[Scheduler] AI 叙事生成失败: {e}")
+                    print(f"[Scheduler] 全局叙事生成失败: {e}")
 
-                # 每 6 小时生成一次全局叙事
-                if now - last_global_run >= 6 * 3600:
-                    print(f"[Scheduler] 触发全局叙事生成...")
-                    try:
-                        from pipeline.global_narrative import run_global_narrative
-                        await run_global_narrative(lookback_hours=24)
-                        last_global_run = now
-                        print(f"[Scheduler] 全局叙事生成完成")
-                    except Exception as e:
-                        print(f"[Scheduler] 全局叙事生成失败: {e}")
-
-                last_hour_bucket = current_hour
+            # 每天 04:00 跑 4 个周期洞察
+            if current_hour == 4 and last_period_run_date != today_str:
+                print(f"[Scheduler] 触发多周期洞察（04:00 例行）...")
+                try:
+                    from pipeline.period_insights import get_all_periods
+                    result = await get_all_periods()
+                    for period, r in result.get("periods", {}).items():
+                        status = "OK" if r.get("ok") else f"FAIL: {r.get('error')}"
+                        print(f"[Scheduler] 周期 {period}: {status}")
+                    last_period_run_date = today_str
+                except Exception as e:
+                    print(f"[Scheduler] 多周期洞察失败: {e}")
+                    last_period_run_date = today_str  # 失败也标记，避免每分钟重试
 
             # 每分钟检查一次
             try:

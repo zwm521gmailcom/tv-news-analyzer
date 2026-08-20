@@ -1,7 +1,15 @@
 """
 Global Narrative — 跨时间/跨区域的全局事件关联分析。
-采用 MiniMax M2.7 作为核心 AI，配备前后 Agent 评分机制。
+采用 MiniMax M3 作为核心 AI，配备前后 Agent 评分机制。
 生成质量不达标时自动重做（最多 3 轮）。
+如 MiniMax 调用失败，错误显式抛出（不再静默切到 Ollama 降级）。
+
+v3 增强（按用户要求）：
+- 历史 context：注入前 3 个 global_narrative 摘要 → AI 写连续性（continued/new/resolved）
+- 6h detail：最近 6h 新闻（top 30）带完整标题+摘要，重点关注
+- 24h summary：过去 24h 全景（top 60）只带标题，快速浏览
+- 时间戳：所有新闻进 AI 都有 [MM-DD HH:MM · X小时前] 标记
+- 隔离：与 AI 周期洞察（period_insights）完全独立，两套历史各自保留
 """
 
 import asyncio
@@ -15,9 +23,6 @@ import httpx
 from config import settings
 from db.database import get_db
 from db.repository import NewsRepository
-
-
-OLLAMA_BASE = "http://localhost:11434/api"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -125,51 +130,7 @@ async def minimax_available() -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  SECTION 2: Ollama 降级备用
-# ═══════════════════════════════════════════════════════════════
-
-async def ollama_available() -> bool:
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.get(f"{OLLAMA_BASE}/tags")
-            return resp.status_code == 200
-    except Exception:
-        return False
-
-
-async def ollama_chat(model: str, prompt: str, timeout: int = 120) -> str:
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{OLLAMA_BASE}/generate",
-            json={"model": model, "prompt": prompt, "stream": False, "options": {"temperature": 0.3, "num_predict": 768}},
-        )
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip()
-
-
-async def get_ollama_json(model: str, prompt: str, timeout: int = 120) -> dict | None:
-    try:
-        response = await ollama_chat(model, prompt, timeout)
-        arr_start = response.find("[")
-        arr_end = response.rfind("]") + 1
-        if arr_start != -1 and arr_end > arr_start:
-            candidate = response[arr_start:arr_end]
-            if candidate.count("{") >= 1:
-                try:
-                    return json.loads(candidate)
-                except Exception:
-                    pass
-        obj_start = response.find("{")
-        obj_end = response.rfind("}") + 1
-        if obj_start != -1 and obj_end > obj_start:
-            return json.loads(response[obj_start:obj_end])
-    except Exception:
-        pass
-    return None
-
-
-# ═══════════════════════════════════════════════════════════════
-#  SECTION 3: Agent 评分系统
+#  SECTION 2: Agent 评分系统
 # ═══════════════════════════════════════════════════════════════
 
 SCORE_THRESHOLD = 6  # 分数低于此值则重做
@@ -342,21 +303,170 @@ def _analyze_time_patterns(hour_narratives):
     }
 
 
+# ── 历史 context（v3 新增）────────────────────────────────
+HISTORY_LOOKBACK = 3   # 看前 3 个 global_narrative
+
+
+async def _fetch_global_narrative_history(limit: int = HISTORY_LOOKBACK, current_id: str | None = None) -> list:
+    """从 global_narratives 表拉前 N 个历史（按时间倒序）。
+
+    返回：list of dict { id, generated_at, lookback_hours, news_count, global_view (list), insights (list) }
+    """
+    async with get_db() as db:
+        # 用 PRAGMA 兼容表结构（避免硬编码列名）
+        cur = await db.execute("PRAGMA table_info(global_narratives)")
+        cols_rows = await cur.fetchall()
+        cols = [r[1] for r in cols_rows]  # PRAGMA columns: cid, name, type, ...
+        id_col = "id" if "id" in cols else ("gn_id" if "gn_id" in cols else None)
+        if not id_col:
+            return []
+        where_excl = f"WHERE {id_col} != ?" if current_id else ""
+        params = [current_id] if current_id else []
+        sql = f"""SELECT {id_col} AS id, generated_at, lookback_hours, news_count,
+                         global_view, insights
+                  FROM global_narratives
+                  {where_excl}
+                  ORDER BY generated_at DESC LIMIT ?"""
+        params.append(limit)
+        cur = await db.execute(sql, params)
+        rows = await cur.fetchall()
+        out = []
+        for r in rows:
+            try:
+                gv = json.loads(r[4]) if r[4] else []
+            except Exception:
+                gv = []
+            try:
+                ins = json.loads(r[5]) if r[5] else []
+            except Exception:
+                ins = []
+            out.append({
+                "id": r[0],
+                "generated_at": r[1],
+                "lookback_hours": r[2],
+                "news_count": r[3],
+                "global_view": gv if isinstance(gv, list) else [gv],
+                "insights": ins if isinstance(ins, list) else [ins],
+            })
+        return out
+
+
+def _format_global_history_context(history_list: list) -> str:
+    """把历史 global_narrative 列表拼成 prompt 文本段。
+
+    v3：每个历史展开其 5 个 viewpoint 的 theme + outlook（精简版），加上 news_count 和时间。
+    """
+    if not history_list:
+        return "（暂无历史全局叙事，这是首次生成）"
+
+    lines = [f"【前 {len(history_list)} 次全局叙事（按时间倒序，最新在前）】", ""]
+    for i, h in enumerate(history_list):
+        ts = time.strftime("%Y-%m-%d %H:%M", time.localtime(h["generated_at"]))
+        period_label = "上上次" if i == 1 else ("上上上次" if i == 2 else f"第 {i+1} 次前")
+        if i == 0:
+            title = f"【上一次全局叙事（{ts}生成，{h['news_count']}条新闻，回看{h.get('lookback_hours',24)}h）】"
+        else:
+            title = f"【{period_label}（{ts}生成，{h['news_count']}条新闻）】"
+        lines.append(title)
+        # 5 个 viewpoint：theme + outlook（精简，不放 summary 避免过长）
+        gv = h.get("global_view") or []
+        for j, v in enumerate(gv[:5]):
+            theme = (v.get("theme") or "(无主题)")[:50]
+            outlook = (v.get("outlook") or "")[:80]
+            risk = v.get("risk_level", "?")
+            lines.append(f"  {j+1}. [{risk}] {theme}")
+            if outlook:
+                lines.append(f"     展望: {outlook}")
+        # 关键洞察标题
+        ins = h.get("insights") or []
+        if ins:
+            ins_titles = []
+            for x in ins[:5]:
+                t = (x.get("title") or "(无标题)")[:40]
+                ins_titles.append(t)
+            if ins_titles:
+                lines.append(f"  关键洞察: {' | '.join(ins_titles)}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def _make_news_text(news_items, limit=30):
+    """每条带时间戳 + 相对时间（如"2小时前"）
+
+    v3：保留为通用版本，按 limit 控制条数。生成 6h detail / 24h summary 时用不同 limit。
+    """
+    import time as _t
     lines = []
     for n in news_items[:limit]:
         provider = n.get("provider") or ""
         title = (n.get("title") or "")[:80]
         short_desc = (n.get("short_desc") or "")[:60]
         desc = short_desc if short_desc else title
-        lines.append(f"- [{provider}] {title}")
+        ts = n.get("published") or 0
+        if ts:
+            age = max(0, int(_t.time()) - int(ts))
+            if age < 3600: rel = f"{age // 60}分钟前"
+            elif age < 86400: rel = f"{age // 3600}小时前"
+            else: rel = f"{age // 86400}天前"
+            abs_ts = _t.strftime("%m-%d %H:%M", _t.localtime(ts))
+            ts_prefix = f"[{abs_ts} · {rel}] "
+        else:
+            ts_prefix = "[?时间] "
+        lines.append(f"- {ts_prefix}[{provider}] {title}")
         if desc != title:
             lines.append(f"  摘要: {desc}")
     return "\n".join(lines)
 
 
+def _make_news_text_6h(news_items, limit=30):
+    """v3：最近 6h detail — 完整标题 + 摘要，标记紧急度。"""
+    import time as _t
+    now = int(_t.time())
+    cutoff = now - 6 * 3600
+    recent = [n for n in news_items if (n.get("published") or 0) >= cutoff]
+    recent.sort(key=lambda n: (-(n.get("urgency") or 0), -(n.get("published") or 0)))
+    lines = [f"（共 {len(recent)} 条最近 6 小时新闻，按紧急度+时间排序，前 {limit} 条如下）", ""]
+    for n in recent[:limit]:
+        provider = n.get("provider") or "Unknown"
+        market = n.get("market") or "unknown"
+        title = (n.get("title") or "")[:120]
+        short = (n.get("short_desc") or "")[:100]
+        urgency = n.get("urgency") or 1
+        ts = n.get("published") or 0
+        if ts:
+            age = max(0, now - int(ts))
+            if age < 3600: rel = f"{age // 60}分钟前"
+            elif age < 86400: rel = f"{age // 3600}小时前"
+            else: rel = f"{age // 86400}天前"
+            abs_ts = _t.strftime("%m-%d %H:%M", _t.localtime(ts))
+            ts_prefix = f"[{abs_ts} · {rel}]"
+        else:
+            ts_prefix = "[?时间]"
+        lines.append(f"- {ts_prefix} [紧急度:{urgency}] [{provider}/{market}] {title}")
+        if short and short != title[:80]:
+            lines.append(f"  摘要: {short}")
+    return "\n".join(lines)
+
+
+def _make_news_text_24h(news_items, limit=60):
+    """v3：过去 24h summary — 仅标题 + market（精简，背景全貌）。"""
+    import time as _t
+    now = int(_t.time())
+    cutoff = now - 24 * 3600
+    recent = [n for n in news_items if (n.get("published") or 0) >= cutoff]
+    recent.sort(key=lambda n: (-(n.get("urgency") or 0), -(n.get("published") or 0)))
+    lines = [f"（共 {len(recent)} 条过去 24 小时新闻，前 {limit} 条标题如下）", ""]
+    for n in recent[:limit]:
+        market = n.get("market") or "?"
+        title = (n.get("title") or "")[:80]
+        lines.append(f"  - [{market}] {title}")
+    return "\n".join(lines)
+
+
 def _make_detailed_news_for_symbols(news_items, symbol_graph, top_n=3):
     lines = []
+    import time as _t
     for sym, ids in sorted(symbol_graph.items(), key=lambda x: len(x[1]), reverse=True)[:8]:
         related = [n for n in news_items if n.get("id") in ids][:top_n]
         if related:
@@ -366,7 +476,17 @@ def _make_detailed_news_for_symbols(news_items, symbol_graph, top_n=3):
                 title = (n.get("title") or "")[:80]
                 short_desc = (n.get("short_desc") or "")[:60]
                 urgency = n.get("urgency") or 1
-                lines.append(f"- [{provider}] [紧急度:{urgency}] {title}")
+                ts = n.get("published") or 0
+                if ts:
+                    age = max(0, int(_t.time()) - int(ts))
+                    if age < 3600: rel = f"{age // 60}分钟前"
+                    elif age < 86400: rel = f"{age // 3600}小时前"
+                    else: rel = f"{age // 86400}天前"
+                    abs_ts = _t.strftime("%m-%d %H:%M", _t.localtime(ts))
+                    ts_prefix = f"[{abs_ts} · {rel}] "
+                else:
+                    ts_prefix = "[?] "
+                lines.append(f"- {ts_prefix}[{provider}] [紧急度:{urgency}] {title}")
                 if short_desc:
                     lines.append(f"  摘要: {short_desc}")
     return "\n".join(lines)
@@ -383,73 +503,97 @@ def _make_symbol_text(symbol_graph):
 #  SECTION 5: 核心 Prompt 生成
 # ═══════════════════════════════════════════════════════════════
 
-def _build_global_view_prompt(news_text: str, symbol_text: str, round_num: int) -> str:
+def _build_global_view_prompt(history_text: str, news_6h_text: str, news_24h_text: str,
+                              symbol_text: str, round_num: int) -> str:
+    """v3：3 段 context：history → 6h detail → 24h summary。"""
     focus_hint = ""
     if round_num == 2:
         focus_hint = "\n[第二轮重做提示] 上一轮评分认为内容过于泛泛，请更加具体，引用具体数字和事件。"
     elif round_num >= 3:
         focus_hint = "\n[第三轮重做提示] 请务必覆盖：股票/指数、大宗商品/外汇、加密货币、地缘政治、行业事件，每个维度都要有具体数据。"
 
-    return f"""你是一个专业的金融新闻分析专家。以下是过去 24 小时的重大新闻事件列表。
+    return f"""你是一个专业的金融新闻分析专家，正在做第 {round_num} 轮生成。请结合历史叙事 + 最新 6h 新闻 + 24h 全景，输出 5 个市场观点。
 
-请分析并输出一个 JSON 数组，包含 5 个市场观点，每个对象包含：
+【上下文 - 3 段】
+────────────────────────────────────
+A. 前 {HISTORY_LOOKBACK} 次全局叙事（用于判断延续/反转/已解决）
+{history_text}
+────────────────────────────────────
+B. 最新 6h 重点新闻（带时间戳+紧急度+摘要，重点关注）
+{news_6h_text}
+────────────────────────────────────
+C. 过去 24h 全景（精简标题，背景全貌）
+{news_24h_text}
+────────────────────────────────────
+热点 symbol：
+{symbol_text}
+{focus_hint}
+
+【输出格式】严格 JSON 数组（5个观点，覆盖不同维度——股票/指数、大宗商品/外汇、地缘政治、行业/公司、加密货币）：
 [
   {{
-    "theme": "一句话描述该市场主题（不超过30字，突出具体事件）",
-    "summary": "用2-3句话总结，包含具体数字、具体公司名、具体价格/涨幅（不说废话）",
+    "theme": "一句话主题（不超过30字，突出具体事件）",
+    "summary": "2-3句话总结。必须：(1) 引用历史叙事的延续/反转（对比 A 段）；(2) 包含最新 6h 的具体数字/公司/价格；(3) 数字必须锚定到具体新闻时间",
     "key_symbols": ["最核心的3个交易标的"],
     "risk_level": "high/medium/low",
-    "outlook": "对未来12小时的具体展望（要有预测方向，不超过50字）"
+    "outlook": "对未来12小时的具体展望（基于最新数据 + 当前趋势，不超过50字）"
   }}
 ]
 
-{focus_hint}
+【时效校验硬规则】
+1. 每条新闻带 [MM-DD HH:MM · X小时前/天前] 时间戳
+2. 引用具体数字/价格时，必须用"该数字出现的新闻时间"来定位
+3. 同一标的数字差异大时（如黄金 2400 vs 4500），以最新一条为准，旧数字仅作为对比/历史
+4. 做"X 将涨到 Y"预测时，Y 应基于最新数字 + 当前趋势，不要引用 1 周前的旧价位
+5. 写连续性时显式标注：延续上次的写"延续..."，新出现写"新增..."，已消退写"已解决..."
 
-要求：5个观点要覆盖不同维度——股票/指数、大宗商品/外汇、地缘政治、行业/公司、加密货币（如数据支持）。只输出 JSON 数组。
-
-新闻列表：
-{news_text}
-
-热点 symbol：
-{symbol_text}"""
+只输出 JSON 数组，不要任何其他文字。"""
 
 
-def _build_insights_prompt(news_text: str, detailed_news: str, round_num: int) -> str:
+def _build_insights_prompt(history_text: str, news_6h_text: str, detailed_news: str, round_num: int) -> str:
+    """v3：3 段 context。"""
     focus_hint = ""
     if round_num == 2:
         focus_hint = "\n[第二轮重做提示] 上一轮洞察过于空泛，请每条都要有具体事件和可量化的影响预测。"
     elif round_num >= 3:
         focus_hint = "\n[第三轮重做提示] 请确保每条洞察都包含：①具体事件 ②具体符号 ③具体影响方向（如铜价涨2%） ④置信度理由。"
 
-    return f"""你是一个专业的金融情报分析专家。从以下新闻中发现关联线索，并预测影响。
+    return f"""你是一个专业的金融情报分析专家，正在做第 {round_num} 轮生成。请结合历史洞察 + 最新 6h 新闻 + 高关联 symbol 详情，输出 5 条洞察。
 
-对每条洞察，判断：
-1. 发生了什么（要具体）
-2. 对市场意味着什么（要有方向）
-3. 影响持续多久、强度多大（要可量化）
+【上下文 - 3 段】
+────────────────────────────────────
+A. 前 {HISTORY_LOOKBACK} 次洞察标题与展望（用于判断洞察的连续性）
+{history_text}
+────────────────────────────────────
+B. 最新 6h 重点新闻（带时间戳+紧急度+摘要）
+{news_6h_text}
+────────────────────────────────────
+C. 高关联 symbol 及详情
+{detailed_news}
+────────────────────────────────────
+{focus_hint}
 
-输出 JSON 数组（5条）：
+【输出格式】严格 JSON 数组（最多 5 条）：
 [
   {{
     "type": "correlation/surveillance/anomaly/warning",
-    "title": "洞察标题（不超过20字，突出核心事件）",
+    "title": "洞察标题（不超过20字）",
     "description": "内容：具体事件+当前状态（不超过80字）",
-    "impact_prediction": "具体影响预测，如：铜价上涨2%、美元指数突破105、AMZN股价上涨5%（不超过30字）",
+    "impact_prediction": "具体影响预测，如：铜价上涨2%、美元指数突破105（不超过30字）",
     "symbols": ["相关符号列表"],
     "urgency": "high/medium/low",
     "confidence": 0.0到1.0（高置信需有强理由）
   }}
 ]
 
-{focus_hint}
+【时效校验硬规则】
+1. 每条新闻带 [MM-DD HH:MM · X小时前/天前] 时间戳
+2. 引用具体数字时，锚定到具体新闻时间
+3. 同一标的不同数字差异大时（黄金 2400 vs 4500），以最新一条为准
+4. 影响预测必须基于最新 6h 趋势，不要引用旧价位
+5. 如果是上次洞察的延续/反转，显式标注
 
-最多 5 条。只输出 JSON。
-
-新闻摘要：
-{news_text}
-
-高关联 symbol 及详情：
-{detailed_news}"""
+只输出 JSON。"""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -520,15 +664,17 @@ async def _generate_with_scoring(
     return best_result
 
 
-async def _call_minimax_global_view(news_text: str, symbol_text: str, round_num: int) -> dict | list | None:
-    prompt = _build_global_view_prompt(news_text, symbol_text, round_num)
-    result = await _minimax_json(prompt, max_tokens=1536, timeout=120)
+async def _call_minimax_global_view(history_text: str, news_6h_text: str, news_24h_text: str,
+                                    symbol_text: str, round_num: int) -> dict | list | None:
+    prompt = _build_global_view_prompt(history_text, news_6h_text, news_24h_text, symbol_text, round_num)
+    result = await _minimax_json(prompt, max_tokens=2048, timeout=120)
     return result
 
 
-async def _call_minimax_insights(news_text: str, detailed_news: str, round_num: int) -> dict | list | None:
-    prompt = _build_insights_prompt(news_text, detailed_news, round_num)
-    result = await _minimax_json(prompt, max_tokens=1536, timeout=120)
+async def _call_minimax_insights(history_text: str, news_6h_text: str, detailed_news: str,
+                                 round_num: int) -> dict | list | None:
+    prompt = _build_insights_prompt(history_text, news_6h_text, detailed_news, round_num)
+    result = await _minimax_json(prompt, max_tokens=2048, timeout=120)
     if result and isinstance(result, list):
         return result[:5]
     return result
@@ -580,29 +726,59 @@ def _fallback_insights(news_items, symbol_graph):
 
 async def _save_global_narrative(result):
     async with get_db() as db:
-        await db.execute(
-            """INSERT OR REPLACE INTO global_narratives
-               (id, generated_at, lookback_hours, news_count,
-                global_view, insights, symbol_network,
-                cross_region_links, time_patterns, computed_by)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (
-                result["id"],
-                result["generated_at"],
-                result["lookback_hours"],
-                result["news_count"],
-                json.dumps(result["global_view"]),
-                json.dumps(result["insights"]),
-                json.dumps(result["symbol_network"]),
-                json.dumps(result["cross_region_links"]),
-                json.dumps(result["time_patterns"]),
-                result["computed_by"],
+        # 用 PRAGMA 检查是否有 references_history_ids 列（兼容老 DB）
+        cur = await db.execute("PRAGMA table_info(global_narratives)")
+        cols_rows = await cur.fetchall()
+        cols = [r[1] for r in cols_rows]
+        if "references_history_ids" in cols:
+            await db.execute(
+                """INSERT OR REPLACE INTO global_narratives
+                   (id, generated_at, lookback_hours, news_count,
+                    global_view, insights, symbol_network,
+                    cross_region_links, time_patterns, computed_by, references_history_ids)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    result["id"],
+                    result["generated_at"],
+                    result["lookback_hours"],
+                    result["news_count"],
+                    json.dumps(result["global_view"]),
+                    json.dumps(result["insights"]),
+                    json.dumps(result["symbol_network"]),
+                    json.dumps(result["cross_region_links"]),
+                    json.dumps(result["time_patterns"]),
+                    result["computed_by"],
+                    json.dumps(result.get("references_history_ids", [])),
+                )
             )
-        )
+        else:
+            # 老 DB 没新列时回退
+            await db.execute(
+                """INSERT OR REPLACE INTO global_narratives
+                   (id, generated_at, lookback_hours, news_count,
+                    global_view, insights, symbol_network,
+                    cross_region_links, time_patterns, computed_by)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    result["id"],
+                    result["generated_at"],
+                    result["lookback_hours"],
+                    result["news_count"],
+                    json.dumps(result["global_view"]),
+                    json.dumps(result["insights"]),
+                    json.dumps(result["symbol_network"]),
+                    json.dumps(result["cross_region_links"]),
+                    json.dumps(result["time_patterns"]),
+                    result["computed_by"],
+                )
+            )
         await db.commit()
 
 
 async def generate_global_narrative(lookback_hours=24):
+    # 先确定本次新 id（用于 history 排除自身）
+    new_id = f"gn_{int(time.time())}"
+
     async with get_db() as db:
         repo = NewsRepository(db)
         region_narratives = await repo.get_region_narratives(hours=lookback_hours)
@@ -626,72 +802,72 @@ async def generate_global_narrative(lookback_hours=24):
         cross_region_links = _find_cross_region_links(region_narratives)
         time_patterns = _analyze_time_patterns(hour_narratives)
 
-        news_text = _make_news_text(news_items)
-        detailed_news = _make_detailed_news_for_symbols(news_items, symbol_graph)
-        symbol_text = _make_symbol_text(symbol_graph)
+    # ── v3：拉前 3 个历史 + 6h/24h 双窗口新闻 ──
+    history_list = await _fetch_global_narrative_history(limit=HISTORY_LOOKBACK, current_id=new_id)
+    history_text = _format_global_history_context(history_list)
+    news_6h_text = _make_news_text_6h(news_items, limit=30)
+    news_24h_text = _make_news_text_24h(news_items, limit=60)
+    news_text = _make_news_text(news_items)  # 旧函数保留（fallback 用）
+    detailed_news = _make_detailed_news_for_symbols(news_items, symbol_graph)
+    symbol_text = _make_symbol_text(symbol_graph)
 
-        # 确定 AI provider
-        use_minimax = await minimax_available()
-        use_ollama = await ollama_available()
-        computed_by = "minimax" if use_minimax else "ollama" if use_ollama else "fallback"
+    # 确定 AI provider（只用 MiniMax；不可用时显式走 fallback，不静默切 Ollama）
+    use_minimax = await minimax_available()
+    computed_by = "minimax" if use_minimax else "fallback"
 
-        if computed_by == "fallback":
+    if computed_by == "fallback":
+        global_view = _fallback_global_view(news_items, symbol_graph)
+        insights = _fallback_insights(news_items, symbol_graph)
+    else:
+        # Global View 生成（含评分重试）
+        async def gen_gv(round_num):
+            return await _call_minimax_global_view(history_text, news_6h_text, news_24h_text, symbol_text, round_num)
+
+        async def score_gv(result, *args):
+            return await _agent_score_output(result, "global_view", len(news_items))
+
+        global_view = await _generate_with_scoring(
+            news_items, symbol_graph, cross_region_links, time_patterns,
+            gen_gv, score_gv, "global_view"
+        )
+        if not global_view:
             global_view = _fallback_global_view(news_items, symbol_graph)
+
+        # Insights 生成（含评分重试）
+        async def gen_ins(round_num):
+            return await _call_minimax_insights(history_text, news_6h_text, detailed_news, round_num)
+
+        async def score_ins(result, *args):
+            return await _agent_score_output(result, "insights", len(news_items))
+
+        insights = await _generate_with_scoring(
+            news_items, symbol_graph, cross_region_links, time_patterns,
+            gen_ins, score_ins, "insights"
+        )
+        if not insights:
             insights = _fallback_insights(news_items, symbol_graph)
-        else:
-            # Global View 生成（含评分重试）
-            async def gen_gv(round_num):
-                if use_minimax:
-                    return await _call_minimax_global_view(news_text, symbol_text, round_num)
-                else:
-                    return await get_ollama_json("qwen2.5:7b",
-                        _build_global_view_prompt(news_text, symbol_text, round_num))
+        elif isinstance(insights, list):
+            insights = insights[:5]
 
-            async def score_gv(result, *args):
-                return await _agent_score_output(result, "global_view", len(news_items))
+    # 记录参考的历史 id 列表（用于 diff/追溯）
+    references_history_ids = [h["id"] for h in history_list]
 
-            global_view = await _generate_with_scoring(
-                news_items, symbol_graph, cross_region_links, time_patterns,
-                gen_gv, score_gv, "global_view"
-            )
-            if not global_view:
-                global_view = _fallback_global_view(news_items, symbol_graph)
+    result = {
+        "id": new_id,
+        "generated_at": int(time.time()),
+        "lookback_hours": lookback_hours,
+        "news_count": len(news_items),
+        "global_view": global_view if isinstance(global_view, list) else [global_view],
+        "insights": insights if isinstance(insights, list) else [insights],
+        "symbol_network": symbol_graph,
+        "cross_region_links": cross_region_links,
+        "time_patterns": time_patterns,
+        "computed_by": computed_by,
+        "references_history_ids": references_history_ids,  # v3 新增：参考的历史
+    }
 
-            # Insights 生成（含评分重试）
-            async def gen_ins(round_num):
-                if use_minimax:
-                    return await _call_minimax_insights(news_text, detailed_news, round_num)
-                else:
-                    return await get_ollama_json("qwen2.5:7b",
-                        _build_insights_prompt(news_text, detailed_news, round_num))
-
-            async def score_ins(result, *args):
-                return await _agent_score_output(result, "insights", len(news_items))
-
-            insights = await _generate_with_scoring(
-                news_items, symbol_graph, cross_region_links, time_patterns,
-                gen_ins, score_ins, "insights"
-            )
-            if not insights:
-                insights = _fallback_insights(news_items, symbol_graph)
-            elif isinstance(insights, list):
-                insights = insights[:5]
-
-        result = {
-            "id": f"gn_{int(time.time())}",
-            "generated_at": int(time.time()),
-            "lookback_hours": lookback_hours,
-            "news_count": len(news_items),
-            "global_view": global_view if isinstance(global_view, list) else [global_view],
-            "insights": insights if isinstance(insights, list) else [insights],
-            "symbol_network": symbol_graph,
-            "cross_region_links": cross_region_links,
-            "time_patterns": time_patterns,
-            "computed_by": computed_by,
-        }
-
-        await _save_global_narrative(result)
-        return result
+    await _save_global_narrative(result)
+    return result
 
 
 async def run_global_narrative(lookback_hours=24):

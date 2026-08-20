@@ -31,6 +31,7 @@ if (typeof window.I18N === 'undefined') {
     { href: '/graph',     key: 'graph' },
     { href: '/graph3d',   key: 'graph3d' },
     { href: '/system',  key: 'system' },
+    { href: '/history', key: 'history' },
   ];
 
   const RUNTIME_ENDPOINT = '/api/runtime';

@@ -450,13 +450,17 @@ body {
 
 <!-- Stats Bar -->
 <div class="stats-bar" id="statsBar">
-  <div class="stat-item"><div class="stat-num" id="s-total">—</div><div class="stat-label" data-i18n="stats.total">全部</div></div>
   <div class="stat-item"><div class="stat-num purple" id="s-en">—</div><div class="stat-label" data-i18n="stats.en">英文</div></div>
   <div class="stat-item"><div class="stat-num green" id="s-zh">—</div><div class="stat-label" data-i18n="stats.zh">中文</div></div>
   <div class="stat-item"><div class="stat-num" style="color:#f7931a" id="s-crypto">—</div><div class="stat-label" data-i18n="stats.crypto">加密</div></div>
   <div class="stat-item"><div class="stat-num purple" id="s-stock">—</div><div class="stat-label" data-i18n="stats.stock">股票</div></div>
   <div class="stat-item"><div class="stat-num" style="color:#38bdf8" id="s-forex">—</div><div class="stat-label" data-i18n="stats.forex">外汇</div></div>
   <div class="stat-item"><div class="stat-num yellow" id="s-futures">—</div><div class="stat-label" data-i18n="stats.futures">期货</div></div>
+  <div class="stat-item"><div class="stat-num" style="color:#a78bfa" id="s-index">—</div><div class="stat-label" data-i18n="stats.index">指数</div></div>
+  <div class="stat-item"><div class="stat-num" style="color:#f5a623" id="s-economic">—</div><div class="stat-label" data-i18n="stats.economic">宏观</div></div>
+  <div class="stat-item"><div class="stat-num" style="color:#6b7280" id="s-unknown">—</div><div class="stat-label" data-i18n="stats.unknown">未分类</div></div>
+  <div class="stat-item"><div class="stat-num" style="color:#10b981" id="s-mkt-24h">—</div><div class="stat-label" data-i18n="stats.market_24h_total">24h合计</div></div>
+  <div class="stat-item"><div class="stat-num" style="color:#94a3b8" id="s-db-total">—</div><div class="stat-label" data-i18n="stats.db_total">DB总数</div></div>
 </div>
 
 <!-- Filter Bar -->
@@ -628,13 +632,19 @@ async function loadStats() {
   try {
     const r = await fetch(`/api/stats?hours=${state.hours}`);
     const d = await r.json();
-    document.getElementById('s-total').textContent = d.total.toLocaleString();
     document.getElementById('s-en').textContent    = (d.by_lang['en'] || 0).toLocaleString();
     document.getElementById('s-zh').textContent    = (d.by_lang['zh-Hans'] || 0).toLocaleString();
     document.getElementById('s-crypto').textContent  = (d.by_market['crypto'] || 0).toLocaleString();
     document.getElementById('s-stock').textContent   = (d.by_market['stock'] || 0).toLocaleString();
     document.getElementById('s-forex').textContent   = (d.by_market['forex'] || 0).toLocaleString();
     document.getElementById('s-futures').textContent = (d.by_market['futures'] || 0).toLocaleString();
+    document.getElementById('s-index').textContent   = (d.by_market['index'] || 0).toLocaleString();
+    document.getElementById('s-economic').textContent = (d.by_market['economic'] || 0).toLocaleString();
+    document.getElementById('s-unknown').textContent = (d.by_market['unknown'] || 0).toLocaleString();
+    // 24h 合计：7 个 market 之和（跟"全部"应一致）
+    const mkt24h = Object.values(d.by_market).reduce((a, b) => a + b, 0);
+    document.getElementById('s-mkt-24h').textContent = mkt24h.toLocaleString();
+    document.getElementById('s-db-total').textContent = (d.db_total || 0).toLocaleString();
 
     if (state.latestTs > 0 && d.latest_ts > state.latestTs) {
       showToast(window.I18N ? window.I18N.t('toast.new') : '🔥 有新消息，已自动更新');

@@ -4,12 +4,12 @@
 (function () {
   const DICT = {
     'zh-Hans': {
-      nav:    { home: '看板', analytics: '分析', timeline: '洞察', map: '地图', graph: '关系图', graph3d: '3D 图谱', system: '系统', backup: '备份' },
+      nav:    { home: '看板', analytics: '分析', timeline: '洞察', map: '地图', graph: '关系图', graph3d: '3D 图谱', system: '系统', backup: '备份', history: '历史' },
       live:   'LIVE',
       refresh: '↻ 刷新',
       refresh_mode: { auto: '自动', manual: '手动', switch_to: '切换为', mode_label: '刷新模式' },
       runtime: { loading: '状态加载中', anon: '匿名模式', cookie: 'Cookie模式' },
-      stats:  { total: '全部', en: '英文', zh: '中文', crypto: '加密', stock: '股票', forex: '外汇', futures: '期货' },
+      stats:  { total: '全部', db_total: 'DB总数', market_24h_total: '24h合计', en: '英文', zh: '中文', crypto: '加密', stock: '股票', forex: '外汇', futures: '期货', index: '指数', economic: '宏观', unknown: '未分类' },
       filter: {
         lang: '语言', market: '市场', all: '全部',
         en_label: '英文 EN', zh_label: '中文 ZH',
@@ -50,6 +50,36 @@
           save_failed: '保存失败',
           open:     '打开配置页',
         },
+      },
+      // 顶层 ai.* 命名空间 — system 页和 config/backfill 页共用
+      ai: {
+        section_title:    '🤖 AI 洞察管理',
+        section_subtitle: '模型 / Key / 4 周期洞察运行状态',
+        loading:          '加载中…',
+        load_failed:      '加载失败',
+        field: {
+          provider:     'Provider',
+          model:        '当前模型',
+          base_url:     'API 地址',
+          api_key:      'API Key',
+          api_key_set:  '✅ 已配置',
+          api_key_missing: '❌ 未配置',
+          api_key_source: '配置位置',
+        },
+        period: {
+          title:     '多周期洞察',
+          daily:     '每日',
+          '3day':    '3 日',
+          weekly:    '每周',
+          monthly:   '每月',
+          last_run:  '上次生成',
+          never:     '从未生成',
+          count:     '条新闻',
+        },
+        last_global: '最近全局叙事',
+        never_global: '从未生成',
+        note_title:  '⚠️ 修改提示',
+        note_text:   'API Key 配置在 .env 文件（变量名 MINIMAX_API_KEY），修改后必须重启 News/Web 服务才能生效。',
       },
       backup: {
         title: '数据备份 & 恢复',
@@ -103,12 +133,12 @@
       }
     },
     'en': {
-      nav:    { home: 'Dashboard', analytics: 'Analytics', timeline: 'Insights', map: 'Map', graph: 'Graph', graph3d: '3D Graph', system: 'System', backup: 'Backup' },
+      nav:    { home: 'Dashboard', analytics: 'Analytics', timeline: 'Insights', map: 'Map', graph: 'Graph', graph3d: '3D Graph', system: 'System', backup: 'Backup', history: 'History' },
       live:   'LIVE',
       refresh: '↻ Refresh',
       refresh_mode: { auto: 'Auto', manual: 'Manual', switch_to: 'Switch to', mode_label: 'Refresh mode' },
       runtime: { loading: 'Loading…', anon: 'Anonymous', cookie: 'Cookie' },
-      stats:  { total: 'Total', en: 'EN', zh: 'CN', crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', futures: 'Futures' },
+      stats:  { total: 'Total', db_total: 'DB Total', market_24h_total: '24h sum', en: 'EN', zh: 'CN', crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', futures: 'Futures', index: 'Index', economic: 'Econ', unknown: 'Unknown' },
       filter: {
         lang: 'Lang', market: 'Market', all: 'All',
         en_label: 'English EN', zh_label: '中文 ZH',
@@ -149,6 +179,36 @@
           save_failed: 'Save failed',
           open:     'Open config page',
         },
+      },
+      // 顶层 ai.* 命名空间 — system 页和 config/backfill 页共用
+      ai: {
+        section_title:    '🤖 AI Insights Management',
+        section_subtitle: 'Model / Key / 4-period insight runtime status',
+        loading:          'Loading…',
+        load_failed:      'Load failed',
+        field: {
+          provider:     'Provider',
+          model:        'Active model',
+          base_url:     'API endpoint',
+          api_key:      'API Key',
+          api_key_set:  '✅ Configured',
+          api_key_missing: '❌ Missing',
+          api_key_source: 'Storage location',
+        },
+        period: {
+          title:     'Multi-period insights',
+          daily:     'Daily',
+          '3day':    '3-day',
+          weekly:    'Weekly',
+          monthly:   'Monthly',
+          last_run:  'Last generated',
+          never:     'Never generated',
+          count:     'news',
+        },
+        last_global: 'Latest global narrative',
+        never_global: 'Never generated',
+        note_title:  '⚠️ Modification note',
+        note_text:   'API Key is stored in .env (MINIMAX_API_KEY). After editing, you must restart the News/Web service to apply.',
       },
       backup: {
         title: 'Backup & Restore',

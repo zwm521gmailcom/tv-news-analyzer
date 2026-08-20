@@ -117,11 +117,62 @@
     $('btnStop').addEventListener('click', doStop);
   }
 
+  // ── AI 配置（只读） ─────────────────────────────────
+  async function loadAiCfg() {
+    try {
+      const r = await fetch('/api/system/ai_status');
+      const d = await r.json();
+      $('aiCfgProvider').textContent = d.provider || '—';
+      $('aiCfgModel').textContent    = d.model || '—';
+      $('aiCfgBaseUrl').textContent  = d.base_url || '—';
+
+      const keyEl = $('aiCfgKeyStatus');
+      if (d.api_key_set) {
+        keyEl.textContent = t('ai.field.api_key_set');
+        keyEl.className = 'green';
+        $('aiCfgKeySource').textContent = `${d.api_key_source} · ${d.api_key_masked || ''}`;
+      } else {
+        keyEl.textContent = t('ai.field.api_key_missing');
+        keyEl.className = 'red';
+        $('aiCfgKeySource').textContent = d.api_key_source || '';
+      }
+
+      $('aiCfgEnvPath').textContent = `📁 ${d.api_key_path || '—'}`;
+      // 缓存最新数据，i18n 切换时复用
+      _aiCfgCache = d;
+    } catch (e) {
+      console.error('loadAiCfg failed:', e);
+    }
+  }
+  // 缓存数据：避免 i18n 切换时再请求一次后端
+  let _aiCfgCache = null;
+  function renderAiCfg() {
+    if (!_aiCfgCache) return;
+    const d = _aiCfgCache;
+    $('aiCfgProvider').textContent = d.provider || '—';
+    $('aiCfgModel').textContent    = d.model || '—';
+    $('aiCfgBaseUrl').textContent  = d.base_url || '—';
+    const keyEl = $('aiCfgKeyStatus');
+    if (d.api_key_set) {
+      keyEl.textContent = t('ai.field.api_key_set');
+      keyEl.className = 'green';
+      $('aiCfgKeySource').textContent = `${d.api_key_source} · ${d.ai_key_masked || ''}`;
+    } else {
+      keyEl.textContent = t('ai.field.api_key_missing');
+      keyEl.className = 'red';
+      $('aiCfgKeySource').textContent = d.api_key_source || '';
+    }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { bindEvents(); refresh(); });
+    document.addEventListener('DOMContentLoaded', () => { bindEvents(); refresh(); loadAiCfg(); });
   } else {
     bindEvents();
     refresh();
+    loadAiCfg();
   }
-  setInterval(refresh, 3000);  // 3s 轮询
+  setInterval(refresh, 3000);        // 3s 轮询回填状态
+  setInterval(loadAiCfg, 60 * 1000); // 60s 刷 AI 配置（开关/Key 变更才需要）
+  // i18n 切换时不重新请求，只重渲染（用缓存）
+  document.addEventListener('i18n:changed', renderAiCfg);
 })();

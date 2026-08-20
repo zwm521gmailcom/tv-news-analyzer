@@ -61,4 +61,4 @@ ENABLE_PRICE_TRACKER = os.getenv("ENABLE_PRICE_TRACKER", "false").lower() == "tr
 # MiniMax API（用于 AI 叙事生成，替代 Ollama）
 MINIMAX_API_KEY: str = os.getenv("MINIMAX_API_KEY", "")
 MINIMAX_BASE_URL: str = os.getenv("MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic/v1")
-MINIMAX_MODEL: str = os.getenv("MINIMAX_MODEL", "MiniMax-M2.7")
+MINIMAX_MODEL: str = os.getenv("MINIMAX_MODEL", "MiniMax-M3")

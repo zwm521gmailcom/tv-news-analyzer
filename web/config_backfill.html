@@ -47,6 +47,21 @@ body { background: var(--bg-primary); color: var(--text-primary); font-family: v
 
 .section { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
 .section-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.section-title .badge { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text-muted); background: rgba(255,255,255,0.06); padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px; }
+.section-title .badge.readonly { background: var(--yellow-subtle); color: var(--yellow); }
+
+/* AI 配置 read-only 字段 */
+.ai-info-row { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); align-items: center; }
+.ai-info-row:last-child { border-bottom: 0; }
+.ai-info-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.ai-info-value { font-size: 14px; color: var(--text-primary); font-weight: 500; }
+.ai-info-value.mono { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; color: var(--purple); }
+.ai-info-value.purple { color: var(--purple); }
+.ai-info-value.green { color: var(--green); }
+.ai-info-value.red { color: var(--red); }
+.ai-info-value small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; margin-top: 3px; }
+.ai-info-link { display: inline-block; margin-top: 12px; font-size: 12px; color: var(--purple); text-decoration: none; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.15s; }
+.ai-info-link:hover { background: var(--purple-subtle); border-color: var(--purple); }
 
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
 .stat { background: var(--bg-filter); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
@@ -138,6 +153,39 @@ body { background: var(--bg-primary); color: var(--text-primary); font-family: v
         <div class="stat-value" id="endedAt" style="font-size:13px;">—</div>
       </div>
     </div>
+  </section>
+
+  <!-- AI 洞察配置（只读，修改需改 .env） -->
+  <section class="section">
+    <div class="section-title">🤖 <span data-i18n="ai.section_title">AI 洞察配置</span><span class="badge readonly" data-i18n="ai.field.api_key_source">配置位置</span></div>
+
+    <div class="ai-info-row">
+      <div class="ai-info-label" data-i18n="ai.field.provider">Provider</div>
+      <div class="ai-info-value" id="aiCfgProvider">—</div>
+    </div>
+    <div class="ai-info-row">
+      <div class="ai-info-label" data-i18n="ai.field.model">当前模型</div>
+      <div class="ai-info-value mono purple" id="aiCfgModel">—</div>
+    </div>
+    <div class="ai-info-row">
+      <div class="ai-info-label" data-i18n="ai.field.base_url">API 地址</div>
+      <div class="ai-info-value mono" style="font-size:12px;" id="aiCfgBaseUrl">—</div>
+    </div>
+    <div class="ai-info-row">
+      <div class="ai-info-label" data-i18n="ai.field.api_key">API Key</div>
+      <div class="ai-info-value">
+        <span id="aiCfgKeyStatus">—</span>
+        <small id="aiCfgKeySource">—</small>
+      </div>
+    </div>
+
+    <div style="background: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.25); border-radius: 10px; padding: 12px 14px; margin-top: 14px; font-size: 12px; line-height: 1.6; color: var(--text-secondary);">
+      <strong style="color: var(--yellow);" data-i18n="ai.note_title">⚠️ 修改提示</strong><br>
+      <span data-i18n="ai.note_text">API Key 配置在 .env 文件（变量名 MINIMAX_API_KEY），修改后必须重启 News/Web 服务才能生效。</span>
+      <div id="aiCfgEnvPath" style="margin-top:6px; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; color: var(--text-muted);"></div>
+    </div>
+
+    <a href="/system" class="ai-info-link" data-i18n="ai.period.title">多周期洞察 →</a>
   </section>
 
   <!-- 参数 -->

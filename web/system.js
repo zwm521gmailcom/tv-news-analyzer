@@ -4,7 +4,7 @@
 (function () {
   // ── 数据源（唯一维护点） ──
   const SYSTEM_LOGIC = {
-    lastUpdated: '2026-08-18',
+    lastUpdated: '2026-08-20',
     auto: [
       { id: 'news-poll', name: '新闻轮询', freq: '60s/轮',
         desc: '每 60 秒调 TradingView 列表接口拉中英双语新闻',
@@ -18,18 +18,10 @@
         desc: '入库后 create_task 后台抓详情（不阻塞主流程）',
         source: 'pipeline/orchestrator.py:43',
         status: 'active' },
-      { id: 'ai-global', name: 'AI 全局叙事', freq: '整点',
-        desc: '调 MiniMax M2.7 生成过去 24h 全局叙事',
-        source: 'pipeline/global_narrative.py',
-        status: 'partial' },
-      { id: 'ai-region', name: 'AI 区域叙事', freq: '整点',
-        desc: 'Ollama qwen2.5:7b 按区域生成一句话叙事',
-        source: 'pipeline/ai_narrator.py',
-        status: 'partial' },
-      { id: 'ai-causal', name: 'AI 因果链', freq: '整点',
-        desc: 'Ollama 每小时末生成事件因果链',
-        source: 'pipeline/ai_narrator.py',
-        status: 'partial' },
+      { id: 'ai-insights', name: 'AI 洞察生成', freq: '6h 一次全局 / 04:00 周期',
+        desc: 'MiniMax-M3 调 generate() 生成 4 周期（daily/3day/weekly/monthly）+ global_narrative 每 6h 生成 24h 全局',
+        source: 'pipeline/period_insights.py + pipeline/global_narrative.py',
+        status: 'active' },
       { id: 'db-migrate', name: 'DB 自动迁移', freq: 'News 启动时',
         desc: 'init_db() 检查 schema + 自动加列（sector/country/corp_activity）',
         source: 'db/database.py',
@@ -231,14 +223,94 @@
     });
   }
 
+  // ── AI 洞察管理 ─────────────────────────────────────
+  function timeAgo(unixSec) {
+    if (!unixSec) return '—';
+    const lang = (window.I18N && window.I18N.getLang) ? window.I18N.getLang() : 'zh-Hans';
+    const s = Math.max(0, Math.floor(Date.now() / 1000 - unixSec));
+    if (s < 60) return lang === 'en' ? `${s}s ago` : `${s} 秒前`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return lang === 'en' ? `${m}m ago` : `${m} 分钟前`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return lang === 'en' ? `${h}h ago` : `${h} 小时前`;
+    const d = Math.floor(h / 24);
+    return lang === 'en' ? `${d}d ago` : `${d} 天前`;
+  }
+
+  async function loadAiStatus() {
+    try {
+      const r = await fetch('/api/system/ai_status');
+      _aiStatusCache = await r.json();
+      renderAiStatus();
+    } catch (e) {
+      console.error('loadAiStatus failed:', e);
+      const t = (k) => (window.I18N ? window.I18N.t(k) : k);
+      const note = document.getElementById('aiNote');
+      if (note) {
+        note.innerHTML = `<strong>${t('ai.load_failed')}</strong>：${e.message}`;
+      }
+    }
+  }
+
+  // 缓存数据：i18n 切换时复用，避免重复请求
+  let _aiStatusCache = null;
+
+  function renderAiStatus() {
+    if (!_aiStatusCache) return;
+    const d = _aiStatusCache;
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const t = (k) => (window.I18N ? window.I18N.t(k) : k);
+
+    setText('aiProvider', d.provider || '—');
+    setText('aiModel',    d.model || '—');
+    setText('aiBaseUrl',  d.base_url || '—');
+
+    // API Key
+    const keyEl = document.getElementById('aiKeyStatus');
+    if (d.api_key_set) {
+      keyEl.textContent = t('ai.field.api_key_set');
+      keyEl.className = 'ai-card-value green';
+      setText('aiKeySource', `${d.api_key_source} · ${d.api_key_masked || ''}`);
+    } else {
+      keyEl.textContent = t('ai.field.api_key_missing');
+      keyEl.className = 'ai-card-value red';
+      setText('aiKeySource', d.api_key_source || '');
+    }
+
+    // 4 周期
+    const countSuffix = t('ai.period.count');
+    for (const p of ['daily', '3day', 'weekly', 'monthly']) {
+      const data = (d.periods || {})[p];
+      const cap = p.charAt(0).toUpperCase() + p.slice(1);
+      const countEl = document.getElementById(`aiPeriod${cap}Count`);
+      const timeEl  = document.getElementById(`aiPeriod${cap}Time`);
+      if (data) {
+        countEl.textContent = `${data.news_count.toLocaleString()} ${countSuffix}`;
+        timeEl.textContent  = `${t('ai.period.last_run')}：${timeAgo(data.generated_at)}`;
+        timeEl.classList.remove('never');
+      } else {
+        countEl.textContent = '—';
+        timeEl.textContent  = t('ai.period.never');
+        timeEl.classList.add('never');
+      }
+    }
+    // 顶部 count
+    const totalCount = Object.values(d.periods || {}).filter(Boolean).length;
+    const countBadge = document.getElementById('aiCount');
+    if (countBadge) countBadge.textContent = `${totalCount}/4`;
+  }
+
   // ── 启动 ──
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { bindEvents(); render(); });
+    document.addEventListener('DOMContentLoaded', () => { bindEvents(); render(); loadAiStatus(); });
   } else {
     bindEvents();
     render();
+    loadAiStatus();
   }
 
   // i18n 切换时重渲染
-  document.addEventListener('i18n:changed', render);
+  document.addEventListener('i18n:changed', () => { render(); renderAiStatus(); });
+  // 每 60s 刷一次 AI 状态（用于显示"X 分钟前"等动态时间）
+  setInterval(loadAiStatus, 60 * 1000);
 })();

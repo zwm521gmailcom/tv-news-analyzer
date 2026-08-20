@@ -58,6 +58,7 @@ logs/backfill.log
 
 # ── 自动化工具缓存 ──
 .playwright-mcp/
+.playwright-cli/
 .claude/
 
 # ── 测试产物（保留测试源码，不保留产出） ──
@@ -70,3 +71,6 @@ htmlcov/
 *.bak
 *.tmp
 *.orig
+
+# 临时测试文件
+/v3_*.png

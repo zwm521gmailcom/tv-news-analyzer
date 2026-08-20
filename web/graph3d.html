@@ -7,8 +7,8 @@
 <style>
 :root{--bg:#0d0e14;--card:#12131e;--muted:#9497a9;--border:rgba(113,50,245,0.12);} 
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:#fff;font-family:Inter,Helvetica,Arial,sans-serif;height:100vh;overflow:hidden}
-.topbar{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(13,14,20,0.9);border-bottom:1px solid var(--border)}
+body{background:var(--bg);color:#fff;font-family:Inter,Helvetica,Arial,sans-serif;min-height:100vh}
+.topbar{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(13,14,20,0.9);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
 .controls{display:flex;gap:12px;align-items:center}
 .select{background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:8px}
 #canvas{width:100%;height:calc(100vh - 110px);display:block}

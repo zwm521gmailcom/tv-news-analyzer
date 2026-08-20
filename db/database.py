@@ -120,9 +120,56 @@ CREATE TABLE IF NOT EXISTS global_narratives (
     symbol_network       TEXT,
     cross_region_links   TEXT,
     time_patterns        TEXT,
-    computed_by          TEXT NOT NULL DEFAULT 'ollama'
+    computed_by          TEXT NOT NULL DEFAULT 'ollama',
+    references_history_ids TEXT  -- v3: JSON 数组，记录本次参考了哪些历史 global_narrative
 );
 CREATE INDEX IF NOT EXISTS idx_global_generated ON global_narratives(generated_at DESC);
+
+-- ── 多周期洞察表（每日/3日/每周/每月 + 板块预测）─────────────
+CREATE TABLE IF NOT EXISTS period_insights (
+    period              TEXT NOT NULL,                    -- 'daily' | '3day' | 'weekly' | 'monthly'
+    period_start        INTEGER NOT NULL,                  -- unix ts
+    period_end          INTEGER NOT NULL,
+    news_count          INTEGER NOT NULL,
+    market_breakdown    TEXT,                              -- JSON: {market: count}
+    provider_breakdown  TEXT,                              -- JSON: top 10
+    symbol_top          TEXT,                              -- JSON: top 10
+    urgency_avg         REAL,
+    ai_summary          TEXT,                              -- AI 摘要
+    ai_themes           TEXT,                              -- JSON array of {title, detail}
+    bullish_sectors     TEXT,                              -- JSON: [{sector, confidence, reason}]
+    bearish_sectors     TEXT,                              -- JSON
+    agent_score         REAL,
+    generated_at        INTEGER NOT NULL,
+    computed_by         TEXT NOT NULL DEFAULT 'minimax',
+    PRIMARY KEY (period, period_start)
+);
+CREATE INDEX IF NOT EXISTS idx_period_lookup ON period_insights(period, period_start DESC);
+CREATE TABLE IF NOT EXISTS period_insights_history (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    period              TEXT NOT NULL,                    -- 'daily' | '3day' | 'weekly' | 'monthly'
+    period_start        INTEGER NOT NULL,
+    period_end          INTEGER NOT NULL,
+    news_count          INTEGER,
+    market_breakdown    TEXT,                              -- JSON
+    provider_breakdown  TEXT,
+    symbol_top          TEXT,
+    urgency_avg         REAL,
+    ai_summary          TEXT,
+    ai_themes           TEXT,                              -- JSON: [{title, detail, status}]
+    bullish_sectors     TEXT,
+    bearish_sectors     TEXT,
+    agent_score         REAL,
+    generated_at        INTEGER NOT NULL,
+    computed_by         TEXT,
+    -- 连续性元数据（生成后由代码 diff 上一期自动填）
+    references_prior_id INTEGER,                            -- 本次基于哪个 prior id 生成
+    new_themes          TEXT,                              -- 本期新出现的主题
+    continued_themes    TEXT,                              -- 从上期延续的主题
+    resolved_themes     TEXT,                              -- 上期已"消退"的主题
+    trend               TEXT                               -- 'up'/'down'/'stable'/'mixed'
+);
+CREATE INDEX IF NOT EXISTS idx_history_period_time ON period_insights_history(period, generated_at DESC);
 """
 
 

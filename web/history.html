@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV News — 历史洞察</title>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<style>
+:root {
+  --bg-primary:    #0d0e14;
+  --bg-card:       #12131e;
+  --bg-card-hover: #181928;
+  --bg-filter:     #0f1019;
+  --border:        rgba(113,50,245,0.15);
+  --border-card:   rgba(113,50,245,0.12);
+  --purple:        #7132f5;
+  --purple-subtle: rgba(113,50,245,0.12);
+  --green:         #149e61;
+  --green-subtle:  rgba(20,158,97,0.14);
+  --red:           #e84040;
+  --red-subtle:    rgba(232,64,64,0.14);
+  --yellow:        #f5a623;
+  --yellow-subtle: rgba(245,166,35,0.14);
+  --blue:          #60a5fa;
+  --text-primary:  #ffffff;
+  --text-secondary:#9497a9;
+  --text-muted:    #5c5f75;
+  --radius:        12px;
+  --font-ui:       'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 14px; min-height: 100vh; }
+
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(13,14,20,0.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.logo { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+.logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--purple) 0%, #5741d8 100%); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.nav-links { display: flex; gap: 4px; margin-left: 12px; }
+.nav-link { padding: 6px 14px; border-radius: 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; }
+.nav-link:hover { background: var(--purple-subtle); color: var(--purple); }
+.nav-link.active { background: var(--purple-subtle); color: var(--purple); }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.clock { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+.main { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+.header { margin-bottom: 24px; }
+.title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+.subtitle { color: var(--text-muted); font-size: 14px; }
+
+/* 过滤器 */
+.filter-bar { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.filter-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.filter-group { display: flex; gap: 6px; }
+.chip { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+.chip:hover { border-color: var(--purple); color: var(--purple); }
+.chip.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+.filter-stats { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+
+/* 时间线 */
+.timeline { position: relative; }
+.timeline::before { content: ''; position: absolute; left: 18px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+
+.timeline-item { position: relative; padding: 0 0 16px 56px; }
+.timeline-dot { position: absolute; left: 10px; top: 18px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg-card); border: 2px solid var(--purple); z-index: 1; }
+.timeline-item.daily   .timeline-dot { border-color: var(--purple); }
+.timeline-item.3day    .timeline-dot { border-color: var(--blue); }
+.timeline-item.weekly  .timeline-dot { border-color: var(--green); }
+.timeline-item.monthly .timeline-dot { border-color: var(--yellow); }
+
+.timeline-card { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius); padding: 16px 20px; cursor: pointer; transition: all 0.15s; }
+.timeline-card:hover { background: var(--bg-card-hover); border-color: var(--purple); }
+.timeline-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.timeline-date { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; color: var(--text-secondary); }
+.timeline-period { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+.timeline-period.daily   { background: var(--purple-subtle); color: var(--purple); }
+.timeline-period.3day    { background: rgba(96,165,250,0.15); color: var(--blue); }
+.timeline-period.weekly  { background: var(--green-subtle); color: var(--green); }
+.timeline-period.monthly { background: var(--yellow-subtle); color: var(--yellow); }
+.timeline-count { font-size: 11px; color: var(--text-muted); }
+.timeline-trend { font-size: 14px; font-weight: 700; }
+.timeline-trend.up    { color: var(--green); }
+.timeline-trend.down  { color: var(--red); }
+.timeline-trend.stable { color: var(--text-muted); }
+.timeline-trend.mixed { color: var(--yellow); }
+
+.timeline-deltas { display: flex; gap: 6px; margin-left: auto; }
+.delta-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+.delta-chip.new       { background: var(--green-subtle); color: var(--green); }
+.delta-chip.continued { background: var(--purple-subtle); color: var(--purple); }
+.delta-chip.resolved  { background: var(--text-muted); color: var(--bg-primary); }
+
+.timeline-summary { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-top: 6px; }
+.timeline-summary.collapsed { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* 展开详情 */
+.timeline-detail { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.timeline-item.expanded .timeline-detail { display: block; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.detail-block { background: var(--bg-primary); border-radius: 8px; padding: 12px 14px; }
+.detail-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; }
+.detail-item { font-size: 12px; color: var(--text-secondary); padding: 4px 0; line-height: 1.5; }
+.detail-item strong { color: var(--text-primary); }
+.detail-sectors { display: flex; flex-direction: column; gap: 6px; }
+.sector-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.sector-name { min-width: 70px; font-weight: 600; }
+.sector-bar { flex: 1; height: 5px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+.sector-bar-fill { height: 100%; border-radius: 3px; }
+.sector-bar-fill.bullish { background: var(--green); }
+.sector-bar-fill.bearish { background: var(--red); }
+.sector-conf { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; color: var(--text-muted); min-width: 24px; text-align: right; }
+
+/* 对比卡片 */
+.compare-card { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; }
+.compare-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.compare-title { font-size: 14px; font-weight: 700; }
+.compare-deltas { display: flex; gap: 14px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+.compare-deltas strong { color: var(--purple); }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+.empty-text { font-size: 14px; }
+
+.loading { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 13px; }
+
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 20px; font-size: 13px; box-shadow: 0 4px 24px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s; z-index: 2000; }
+.toast.show { opacity: 1; }
+</style>
+<link rel="stylesheet" href="/static/shared-ui.css">
+<script defer src="/static/shared-ui.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-icon">📜</div>
+      TV News
+    </div>
+    <nav class="nav-links">
+      <a href="/" class="nav-link" data-i18n="nav.home">看板</a>
+      <a href="/analytics" class="nav-link" data-i18n="nav.analytics">分析</a>
+      <a href="/timeline" class="nav-link" data-i18n="nav.timeline">洞察</a>
+      <a href="/map" class="nav-link" data-i18n="nav.map">地图</a>
+      <a href="/graph" class="nav-link" data-i18n="nav.graph">关系图</a>
+      <a href="/graph3d" class="nav-link" data-i18n="nav.graph3d">3D 图谱</a>
+      <a href="/system" class="nav-link" data-i18n="nav.system">系统</a>
+      <a href="/history" class="nav-link active" data-i18n="nav.history">历史</a>
+    </nav>
+  </div>
+  <div class="topbar-right">
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main class="main">
+  <div class="header">
+    <h1 class="title">📜 历史洞察</h1>
+    <p class="subtitle">按时间倒序展示所有 AI 周期洞察的生成记录，含连续性 diff（new / continued / resolved）</p>
+  </div>
+
+  <!-- 过滤器 -->
+  <div class="filter-bar">
+    <span class="filter-label">周期</span>
+    <div class="filter-group" id="periodFilter">
+      <button class="chip active" data-period="">全部</button>
+      <button class="chip" data-period="daily">每日</button>
+      <button class="chip" data-period="3day">3 日</button>
+      <button class="chip" data-period="weekly">每周</button>
+      <button class="chip" data-period="monthly">每月</button>
+    </div>
+    <div class="filter-stats" id="filterStats">加载中…</div>
+  </div>
+
+  <!-- 最新 vs 上一期 对比 -->
+  <div class="compare-card" id="compareCard" style="display:none;">
+    <div class="compare-header">
+      <span class="compare-title" id="compareTitle">🔄 连续性对比</span>
+      <div class="filter-group" id="comparePeriodTabs">
+        <button class="chip active" data-cmp-period="daily">每日</button>
+        <button class="chip" data-cmp-period="3day">3 日</button>
+        <button class="chip" data-cmp-period="weekly">每周</button>
+        <button class="chip" data-cmp-period="monthly">每月</button>
+      </div>
+    </div>
+    <div class="compare-deltas" id="compareDeltas"></div>
+  </div>
+
+  <!-- 时间线 -->
+  <div class="timeline" id="timeline">
+    <div class="loading">加载中…</div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/history.js"></script>
+</body>
+</html>
