@@ -38,6 +38,26 @@
     return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
   }
 
+  // ── v3: 新闻范围格式化 ──
+  // 洞察是"过去 N 天新闻"的总结。每条洞察有 period_start ~ period_end 表示覆盖的新闻时间窗
+  const PERIOD_WINDOW = {daily: '24h', '3day': '3天', weekly: '7天', monthly: '30天'};
+
+  function fmtDateShort(unixSec) {
+    if (!unixSec) return '—';
+    const d = new Date(unixSec * 1000);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${mm}-${dd} ${hh}:${mi}`;
+  }
+
+  function fmtNewsRange(period, periodStart, periodEnd) {
+    if (!periodStart || !periodEnd) return '—';
+    const win = PERIOD_WINDOW[period] || '';
+    return `${fmtDateShort(periodStart)} ~ ${fmtDateShort(periodEnd)}${win ? ` (${win})` : ''}`;
+  }
+
   function showToast(msg) {
     const el = $('toast');
     el.textContent = msg;
@@ -74,13 +94,29 @@
         card.style.display = 'block';
         $('compareTitle').textContent = `🔄 连续性对比：${comparePeriod}`;
         const deltas = d.deltas;
+        // v3: 显示两个新闻范围（当期 vs 上期）
+        const curRange = fmtNewsRange(comparePeriod, d.current.period_start, d.current.period_end);
+        const priorRange = fmtNewsRange(comparePeriod, d.prior.period_start, d.prior.period_end);
         $('compareDeltas').innerHTML = `
-          <span>📊 趋势变化：<strong>${escapeHtml(deltas.trend_change)}</strong></span>
-          <span>📈 新闻数：<strong>${deltas.news_count_delta >= 0 ? '+' : ''}${deltas.news_count_delta}</strong></span>
-          <span>🆕 新增主题：<strong>${deltas.new_count}</strong></span>
-          <span>🔁 延续主题：<strong>${deltas.continued_count}</strong></span>
-          <span>✅ 已解决：<strong>${deltas.resolved_count}</strong></span>
-          <span>⏱️ 上期距今：<strong>${timeAgo(d.prior.generated_at)}</strong></span>
+          <div class="compare-ranges">
+            <div class="range-block current">
+              <div class="range-label">📅 当期新闻范围</div>
+              <div class="range-value">${escapeHtml(curRange)}</div>
+            </div>
+            <div class="range-arrow">→</div>
+            <div class="range-block prior">
+              <div class="range-label">📅 上期新闻范围</div>
+              <div class="range-value">${escapeHtml(priorRange)}</div>
+            </div>
+          </div>
+          <div class="compare-meta">
+            <span>📊 趋势变化：<strong>${escapeHtml(deltas.trend_change)}</strong></span>
+            <span>📈 新闻数：<strong>${deltas.news_count_delta >= 0 ? '+' : ''}${deltas.news_count_delta}</strong></span>
+            <span>🆕 新增：<strong>${deltas.new_count}</strong></span>
+            <span>🔁 延续：<strong>${deltas.continued_count}</strong></span>
+            <span>✅ 已解决：<strong>${deltas.resolved_count}</strong></span>
+            <span>🤖 推理：<strong>${fmtDate(d.prior.generated_at)} → ${fmtDate(d.current.generated_at)}</strong></span>
+          </div>
         `;
       } else {
         // 至少 1 条历史，但没法对比
@@ -111,13 +147,16 @@
       const resCount = (item.resolved_themes || []).length;
       const trend = item.trend || 'stable';
 
+      // v3: 双日期显示
+      const newsRange = fmtNewsRange(item.period, item.period_start, item.period_end);
+
       html += `<div class="timeline-item ${item.period}" data-id="${item.id}">`;
       html += `  <div class="timeline-dot"></div>`;
       html += `  <div class="timeline-card" data-action="toggle">`;
-      // header
+      // header — 第 1 行：推理日期 + counts
       html += `    <div class="timeline-header">`;
       html += `      <span class="timeline-period ${item.period}">${periodLabel[item.period] || item.period}</span>`;
-      html += `      <span class="timeline-date">${fmtDate(item.generated_at)}</span>`;
+      html += `      <span class="timeline-infer" title="AI 推理时间">🤖 推理 ${fmtDate(item.generated_at)}</span>`;
       html += `      <span class="timeline-count">📰 ${item.news_count} 条</span>`;
       html += `      <span class="timeline-trend ${trend}" title="整体趋势">${trendIcon[trend] || '•'} ${trend}</span>`;
       // deltas
@@ -128,6 +167,12 @@
         if (resCount)     html += `        <span class="delta-chip resolved">✓${resCount}</span>`;
         html += `      </div>`;
       }
+      html += `    </div>`;
+      // header — 第 2 行：新闻日期范围（按新闻日期推理的核心）
+      html += `    <div class="timeline-news-range" title="这条洞察覆盖的新闻时间窗口（按此时间线进行推理）">`;
+      html += `      <span class="news-range-icon">📅</span>`;
+      html += `      <span class="news-range-label">新闻范围</span>`;
+      html += `      <span class="news-range-value">${escapeHtml(newsRange)}</span>`;
       html += `    </div>`;
       // summary
       html += `    <div class="timeline-summary collapsed">${escapeHtml(item.summary || '（无总结）')}</div>`;

@@ -548,7 +548,12 @@ async def get_all_periods() -> dict:
 
 # ── 历史/对比 API（v2 新增） ──────────────────────────────
 async def get_period_history(period: str = None, limit: int = 10) -> dict:
-    """读 history 表。period=None 返回所有周期的最近 N 条。"""
+    """读 history 表。period=None 返回所有周期的最近 N 条。
+
+    v3 排序：按 period_end DESC（新闻截止时间倒序）—— 洞察是"过去 N 天新闻"的总结，
+    应该按新闻时间线排序，不是按 AI 写的时间。每个 period 都有 period_start~period_end
+    表示这条洞察覆盖的新闻时间窗口。
+    """
     async with get_db() as db:
         if period:
             cur = await db.execute(
@@ -557,7 +562,7 @@ async def get_period_history(period: str = None, limit: int = 10) -> dict:
                           new_themes, continued_themes, resolved_themes, trend
                    FROM period_insights_history
                    WHERE period = ?
-                   ORDER BY generated_at DESC LIMIT ?""",
+                   ORDER BY period_end DESC LIMIT ?""",
                 (period, limit)
             )
         else:
@@ -566,7 +571,7 @@ async def get_period_history(period: str = None, limit: int = 10) -> dict:
                           ai_summary, generated_at, references_prior_id,
                           new_themes, continued_themes, resolved_themes, trend
                    FROM period_insights_history
-                   ORDER BY generated_at DESC LIMIT ?""",
+                   ORDER BY period_end DESC LIMIT ?""",
                 (limit,)
             )
         rows = await cur.fetchall()

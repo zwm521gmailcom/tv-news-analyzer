@@ -71,6 +71,24 @@ body { background: var(--bg-primary); color: var(--text-primary); font-family: v
 .timeline-card:hover { background: var(--bg-card-hover); border-color: var(--purple); }
 .timeline-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
 .timeline-date { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; color: var(--text-secondary); }
+.timeline-infer { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; color: var(--text-muted); }
+
+/* v3: 新闻日期范围（每条洞察覆盖的新闻时间窗口） */
+.timeline-news-range { display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin-bottom: 8px; background: rgba(200, 165, 96, 0.08); border-left: 2px solid var(--yellow); border-radius: 4px; font-size: 12px; }
+.news-range-icon { font-size: 13px; }
+.news-range-label { color: var(--yellow); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
+.news-range-value { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-primary); font-weight: 600; font-size: 12px; }
+
+/* v3: compare card 双范围 */
+.compare-ranges { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 10px 12px; background: var(--bg-primary); border-radius: 8px; }
+.range-block { flex: 1; padding: 6px 10px; border-radius: 6px; }
+.range-block.current { background: rgba(46, 212, 122, 0.10); border-left: 2px solid var(--green); }
+.range-block.prior   { background: rgba(96, 165, 250, 0.10); border-left: 2px solid var(--blue); }
+.range-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; margin-bottom: 4px; }
+.range-value { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.range-arrow { color: var(--text-muted); font-size: 18px; }
+.compare-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-secondary); }
+.compare-meta strong { color: var(--text-primary); }
 .timeline-period { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
 .timeline-period.daily   { background: var(--purple-subtle); color: var(--purple); }
 .timeline-period.3day    { background: rgba(96,165,250,0.15); color: var(--blue); }
