@@ -1,11 +1,13 @@
 # TradingView News Monitor
 
-> 实时抓取 TradingView 双语新闻，SQLite 落库，终端彩色展示 + Web 看板 + 数据分析页 + 事件关系图 + 3D 图谱。
+> 实时抓取 TradingView 双语新闻，SQLite 落库，终端彩色展示 + Web 看板 + 数据分析页 + 事件关系图 + 3D 图谱 + **AI 双体系洞察（周期 + 全局叙事）**。
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 ![DB](https://img.shields.io/badge/SQLite-local-003B57)
 ![Data](https://img.shields.io/badge/data-local--only-blue)
+![AI](https://img.shields.io/badge/AI-MiniMax--M3-cc785c)
+![Version](https://img.shields.io/badge/version-v1.1.0-blue)
 
 ---
 
@@ -19,7 +21,7 @@
 
 ![Analytics](docs/screenshots/02-analytics.png)
 
-### 🕒 AI 市场洞察（时间线）
+### 🕒 AI 市场洞察（时间线 + 全局叙事 + 4 周期 tab）
 
 ![Timeline](docs/screenshots/03-timeline.png)
 
@@ -35,7 +37,7 @@
 
 ![3D Graph](docs/screenshots/06-graph3d.png)
 
-### 🛠️ 系统总览
+### 🛠️ 系统总览（含 AI 配置 + 多周期洞察状态）
 
 ![System](docs/screenshots/07-system.png)
 
@@ -47,17 +49,57 @@
 
 ## ✨ 功能特点
 
+### 数据采集
+
 | 模块 | 说明 |
 |------|------|
 | 🌍 **双语并发抓取** | 同时抓取英文（`en`）和中文（`zh-Hans`），每轮最多 600 条，支持匿名运行 |
 | 🔄 **增量轮询** | 记录上次最新时间戳，只返回新条目，nonce 参数绕过 CDN 缓存 |
 | 📰 **正文抓取** | 详情接口获取完整正文（AST → 纯文本），后台异步，不阻塞显示 |
 | 🧠 **市场自动推断** | 三级推断（交易所前缀 → 提供商名称 → 标题关键词），覆盖 crypto/stock/forex/futures/index/economic |
-| 🖥️ **Web 看板** | Kraken 暗色风格，统一导航栏 + 运行态徽章，实时过滤，点击卡片查看全文弹窗 |
-| 📊 **数据分析页** | 麦肯锡风格，时间分布/来源排名/市场占比等图表 |
-| 🕸️ **关系图谱** | 事件关系图与 3D 图谱，按新闻、市场、标的关系探索关联脉络 |
 | 💾 **本地优先** | SQLite 存储，无云端依赖；数据完全在你自己的机器上 |
 | 🔐 **登录态可选** | `data/cookies.txt` 有内容时启用 Cookie 模式；空白时自动匿名降级 |
+
+### Web 看板（9 个页面，统一暗色 Kraken 风格）
+
+| 页面 | 功能 |
+|------|------|
+| 🏠 `/` | 新闻看板（实时过滤 + 全文弹窗） |
+| 📊 `/analytics` | 麦肯锡风格数据分析（时间分布/来源/市场占比） |
+| 🕒 `/timeline` | **AI 洞察页**（4 周期 tab + 全局叙事 + 跨事件关联网络） |
+| 🗺️ `/map` | 全球事件地图（地理分布） |
+| 🕸️ `/graph` | 关系图谱（事件/市场/标的） |
+| 🌀 `/graph3d` | 3D 图谱（1404 节点 / 723 边） |
+| 🛠️ `/system` | 系统总览 + **AI 配置 + 多周期洞察状态** |
+| 💾 `/backup` | 数据备份 & 恢复（手动管理，**永不自动删除**） |
+| ⚙️ `/config/backfill` | 回填参数 + **AI 洞察配置（只读）** |
+| 📜 `/history` | **AI 洞察历史时间线**（4 周期筛选 + 连续性对比） |
+
+### 🧠 AI 洞察双体系（v1.1.0 新增）
+
+项目维护**两套完全隔离**的 AI 体系，避免相互干扰：
+
+| 体系 | 数据源 | 刷新频率 | 输出 |
+|---|---|---|---|
+| **AI 周期洞察** | 1d / 3d / 7d / 30d 范围 | 每天 04:00（4 个 period 一次跑） | summary + 5-10 themes + 3-6 多空板块（带 status: new/continued/resolved） |
+| **AI 全局叙事** | 过去 24h 跨区域关联 | 每 6h 一次 | 5 个 viewpoint + 5 条 insight（24h summary + 6h detail） |
+
+**两套体系的核心硬规则**：
+- ⏰ **时间戳注入**：每条新闻进 AI 都有 `[MM-DD HH:MM · X小时前]` 标记，AI 引用数字时锚定到具体新闻时间
+- 📚 **历史 context**：生成时拉前 N 个同周期历史（period: daily=3, 3day/weekly/monthly=2；global: 3 个），AI 显式标注"延续/反转/已解决"
+- 🛡️ **完全隔离**：周期洞察和全局叙事**各自独立的 prompt + 独立的历史表 + 独立的 API**，互不干扰
+- 💾 **历史可查**：所有生成 append 到 history 表，永久保留，可在 `/history` 页面追溯
+
+**示例输出（v3 实际生成）**：
+> 📌 美财政部干预债市，美元创三月新低，黄金退守4500
+> summary: 延续上次"美债买盘回升缓解恐慌"叙事，但最新6h出现反转：[08-20 12:14]美元跌至三个月新低...[08-20 12:05]黄金回吐两个多月新高涨幅...Reuters评论'Bonds bounce on US buybacks, but relief may be brief'暗示干预效果存疑
+
+### 🛡️ 数据保护
+
+- `db/database.py:init_db()` 严格幂等（`CREATE TABLE IF NOT EXISTS` + 列存在性检查）
+- 全代码 grep `DELETE FROM raw_news` = **0 命中**
+- 备份策略：所有备份**永不自动删除**，由你在 `/backup` 页面手动管理
+- `.env` 中的 `MINIMAX_API_KEY` **绝不上传**（API 响应也只回传 mask 后的 `sk-c…uqkM`）
 
 ---
 
@@ -110,12 +152,14 @@ chmod +x tvnews.sh
 |------|------|
 | http://localhost:5888/ | 新闻看板（暗色风格 + 全文弹窗） |
 | http://localhost:5888/analytics | 数据分析页（麦肯锡风格） |
-| http://localhost:5888/timeline | 洞察页（时间线） |
+| http://localhost:5888/timeline | **AI 洞察**（4 周期 tab + 全局叙事 + 跨事件网络） |
 | http://localhost:5888/map | 地图页（地理分布） |
 | http://localhost:5888/graph | 关系图谱 |
 | http://localhost:5888/graph3d | 3D 图谱 |
-| http://localhost:5888/system | 系统总览（自动 / 半自动 / 手动分类） |
+| http://localhost:5888/system | 系统总览 + AI 配置 + 多周期状态 |
 | http://localhost:5888/backup | 数据备份 & 恢复（手动管理） |
+| http://localhost:5888/config/backfill | 回填参数 + AI 洞察配置 |
+| http://localhost:5888/history | **AI 洞察历史时间线** |
 
 ### 历史数据回填（首次运行后）
 
@@ -159,13 +203,14 @@ tv-news-analyzer/
 ├── requirements.txt
 │
 ├── config/settings.py          # 全部常量（从 .env 加载）
-├── core/                       # fetcher / cookie_manager / rate_limiter / ws_fetcher
+├── core/                       # fetcher / cookie_manager / rate_limiter / ws_fetcher / minimax_client
 ├── db/                         # models / database（init_db 幂等迁移） / repository
-├── pipeline/                   # orchestrator / scheduler
+├── pipeline/                   # orchestrator / scheduler / global_narrative / period_insights
 ├── display/console.py          # rich 终端输出
-├── web/                        # Flask API + 7 个页面（index/analytics/timeline/map/graph/graph3d/system/backup）
+├── web/                        # Flask API + 9 个页面（index/analytics/timeline/map/graph/graph3d/system/backup/config_backfill/history）
 │
 └── scripts/
+    ├── init.sh                 # 幂等初始化
     ├── backfill_story_body.py  # 正文回填
     ├── backfill_raw_fields.py  # 字段回填
     ├── sync_to_obsidian.py     # 同步到 Obsidian
@@ -227,6 +272,16 @@ tv-news-analyzer/
 | `ENABLE_PRICE_TRACKER` | `false` | WebSocket 实时价格（需有效 Cookie） |
 | `TV_PRICE_SYMBOLS` | `BTC/ETH/SOL/BNB/XRP` | 实时价格订阅列表 |
 
+### AI 洞察（v1.1.0+）
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `MINIMAX_API_KEY` | 空 | MiniMax API key（v1.1+ 唯一 AI 提供方） |
+| `MINIMAX_BASE_URL` | `https://api.minimaxi.com/anthropic/v1` | MiniMax Anthropic 兼容端点 |
+| `MINIMAX_MODEL` | `MiniMax-M3` | 默认模型 |
+
+> API key 配置在 `.env` 后**必须重启 News + Web 服务**才能生效。Web 端的 `/system` 和 `/config/backfill` 页面会显示当前生效的配置（key 仅显示 mask 后的 `sk-c…uqkM`）。
+
 ---
 
 ## 🏗️ 系统架构
@@ -255,23 +310,32 @@ python3 run.py
 ```
 Flask (port 5888)
 ├── /api/* (JSON)
-│   ├── /api/stats          整体统计
-│   ├── /api/news           分页新闻
-│   ├── /api/news_detail    单条详情（含 story_body）
-│   ├── /api/analytics      分析数据
-│   ├── /api/runtime        运行态（匿名 / Cookie）
-│   ├── /api/backup/*       备份 & 恢复
-│   ├── /api/system         系统总览
-│   └── /api/config/*       配置
+│   ├── /api/stats                  整体统计
+│   ├── /api/news                   分页新闻
+│   ├── /api/news_detail            单条详情（含 story_body）
+│   ├── /api/analytics              分析数据
+│   ├── /api/runtime                运行态（匿名 / Cookie）
+│   ├── /api/backup/*               备份 & 恢复
+│   ├── /api/system                 系统总览
+│   ├── /api/system/ai_status       AI 配置 + 多周期洞察状态（v1.1）
+│   ├── /api/insights/period        读 4 周期洞察（v1.1）
+│   ├── /api/insights/generate      强制重生成（v1.1）
+│   ├── /api/insights/history       周期洞察历史（v1.1）
+│   ├── /api/insights/compare       周期洞察对比（v1.1）
+│   ├── /api/global_narrative       全局叙事（v1.1：含 6h/24h 双窗口 + history context）
+│   ├── /api/global_narrative/history  全局叙事历史（v1.1）
+│   └── /api/config/*               配置
 └── /* (HTML)
-    ├── /                   看板
-    ├── /analytics          分析
-    ├── /timeline           时间线
-    ├── /map                地图
-    ├── /graph              关系图
-    ├── /graph3d            3D
-    ├── /system             系统总览
-    └── /backup             备份
+    ├── /                           看板
+    ├── /analytics                  分析
+    ├── /timeline                   AI 洞察（4 周期 + 全局叙事）
+    ├── /map                        地图
+    ├── /graph                      关系图
+    ├── /graph3d                    3D
+    ├── /system                     系统总览 + AI 配置
+    ├── /backup                     备份
+    ├── /config/backfill            回填参数 + AI 配置
+    └── /history                    AI 洞察历史时间线
 ```
 
 ---
@@ -322,6 +386,50 @@ Web 看板点击「₿ 加密」筛选；终端使用 `python3 run.py --query --
 
 **Q: 数据库不小心满了或想清理历史？**
 本项目**不自动删任何数据**。如需手动管理，访问 http://localhost:5888/backup 用手动备份 & 恢复功能。
+
+**Q: AI 洞察的时间戳有什么用？为什么 AI 之前用旧金价？**
+每条新闻进 AI 都有 `[08-20 12:14 · 2小时前]` 标记，AI 引用具体数字时锚定到这个时间。如果同一天出现 "金价 2400" 和 "金价 4500" 两条新闻，prompt 硬规则要求 AI 以**最新一条为准**，旧数字仅作历史对比。如果看到 AI 用了旧数字，可能是缓存（页面下拉刷新 60s 后会拉新生成）；也可以点击 `/timeline` 右上"🔄 刷新"按钮手动触发重生成。
+
+**Q: 全局叙事和周期洞察有什么区别？**
+- **周期洞察**（/timeline 的 4 个 tab + /history）：看 N 天趋势，每个 period 独立。daily 看过去 24h，weekly 看过去 7 天。每天 04:00 跑一次。
+- **全局叙事**（/timeline 顶部"AI 全局叙事"区）：看过去 24h 跨区域关联，每 6h 跑一次。强调"刚刚发生了什么"+"历史叙事延续性"。
+- 两者**完全独立**，不共享 prompt 和 history 表。
+
+---
+
+## 📦 Release Notes
+
+### v1.1.0（2026-08-20）— AI 双体系 + 历史追溯
+
+**新增**：
+- 🧠 **AI 周期洞察**：4 个 period（daily / 3day / weekly / monthly），每天 04:00 自动生成
+- 🧠 **AI 全局叙事**：每 6h 一次，注入 6h detail + 24h summary 双窗口 + 3 个历史 context
+- ⏰ **时间戳硬规则**：每条新闻进 AI 都有 `[MM-DD HH:MM · X小时前]` 标记，AI 引用数字锚定到具体时间
+- 📚 **历史可查**：`period_insights_history` 表 append-only 保留所有生成；`global_narratives` 表本身就是历史
+- 📜 **`/history` 页面**：4 周期筛选 + 连续性对比卡 + 时间线（period 颜色区分）
+- 🛠️ **`/system` AI 管理区**：provider/model/base_url/api_key（mask）+ 4 周期洞察状态
+- ⚙️ **`/config/backfill` AI 配置区**：只读配置 + `.env` 警告 + 多周期洞察跳转链接
+- 🔌 **8 个新 API**：`/api/insights/{period,generate,history,compare}` + `/api/system/ai_status` + `/api/global_narrative/history`
+
+**改进**：
+- 🎨 9 个页面统一 layout：sticky topbar + body `min-height: 100vh` 自然滚动
+- 🔤 字体统一定型：H1 24px / H2 15px / H3 14px / Body 14px / Caption 12px / Meta 11px
+- 🧹 删除 `pipeline/ai_narrator.py`（Ollama 100% 移除）
+- 🔧 MiniMax M2.7 → M3
+- 🗄️ global_narratives 表加 `references_history_ids` 列（记录本次参考的历史）
+
+**修复**：
+- 防止 AI 用过期价格（时间戳锚定 + 硬规则："以最新一条为准"）
+- 防止 4h 真空期（6h scheduler + 60s 页面自动刷新）
+
+### v1.0.0（2026-08-18）— 首个公开版本
+
+- 双语并发抓取（en + zh-Hans）
+- Web 看板（Kraken 暗色风格）
+- 数据分析页（麦肯锡风格）
+- 事件关系图 + 3D 图谱
+- 系统总览 + 数据备份 & 恢复
+- 8 个页面截图
 
 ---
 
