@@ -21,7 +21,7 @@
 
 ![Analytics](docs/screenshots/02-analytics.png)
 
-### 🕒 AI 市场洞察（时间线 + 全局叙事 + 4 周期 tab）
+### 🕒 AI 市场洞察（时间线 + 4 周期 tab + 全局叙事）
 
 ![Timeline](docs/screenshots/03-timeline.png)
 
@@ -37,13 +37,21 @@
 
 ![3D Graph](docs/screenshots/06-graph3d.png)
 
-### 🛠️ 系统总览（含 AI 配置 + 多周期洞察状态）
+### 🛠️ 系统总览（含 AI 管理 + 多周期洞察状态）
 
 ![System](docs/screenshots/07-system.png)
 
-### 💾 数据备份 & 恢复
+### 💾 数据备份 & 恢复（手动管理）
 
 ![Backup](docs/screenshots/08-backup.png)
+
+### 📜 AI 洞察历史（4 周期筛选 + 连续性对比）
+
+![History](docs/screenshots/09-history.png)
+
+### ⚙️ 回填参数 + AI 洞察配置
+
+![Config](docs/screenshots/10-config.png)
 
 ---
 
