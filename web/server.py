@@ -575,90 +575,6 @@ def api_analytics():
     })
 
 
-# ── API: Map Regions（地图区域聚合 + AI 叙事）───────────────
-
-@app.route("/api/map_regions")
-def api_map_regions():
-    """返回按区域聚合的 AI 叙事（地图用）"""
-    hours = int(request.args.get("hours", 24))
-    since = int(time.time()) - hours * 3600
-
-    db = get_db()
-    try:
-        # 尝试从 region_narratives 表读取
-        rows = db.execute(
-            """SELECT id, hour_bucket, region, latitude, longitude,
-                      news_count, top_events, ai_brief, ai_reasoning,
-                      urgency_score, computed_at, computed_by
-               FROM region_narratives
-               WHERE hour_bucket >= ?
-               ORDER BY hour_bucket DESC, urgency_score DESC""",
-            (since,)
-        ).fetchall()
-
-        if rows:
-            items = []
-            for r in rows:
-                items.append({
-                    "region":    r["region"],
-                    "lat":       r["latitude"],
-                    "lng":       r["longitude"],
-                    "news_count": r["news_count"],
-                    "ai_brief":  r["ai_brief"],
-                    "urgency_score": r["urgency_score"],
-                    "hour_bucket": r["hour_bucket"],
-                    "hour_label": _hour_label(r["hour_bucket"]),
-                    "top_events": json.loads(r["top_events"] or "[]"),
-                    "computed_by": r["computed_by"],
-                })
-            return jsonify({"regions": items, "source": "ai"})
-
-        # 降级：从 geo_events 实时聚合
-        geo_rows = db.execute(
-            """SELECT region, latitude, longitude, urgency,
-                      COUNT(*) as cnt
-               FROM geo_events g
-               WHERE g.published >= ?
-               GROUP BY region
-               ORDER BY urgency DESC""",
-            (since,)
-        ).fetchall()
-
-        regions = []
-        for r in geo_rows:
-            region = r["region"] or "Other"
-            news_rows = db.execute(
-                """SELECT g.news_id, r.title, r.urgency
-                   FROM geo_events g
-                   JOIN raw_news r ON g.news_id = r.id
-                   WHERE g.published >= ? AND g.region = ?
-                   ORDER BY r.urgency DESC LIMIT 5""",
-                (since, region)
-            ).fetchall()
-            top_events = [{"news_id": nr["news_id"], "title": nr["title"], "urgency": nr["urgency"]} for nr in news_rows]
-
-            lat = r["latitude"] or 20.0
-            lng = r["longitude"] or 0.0
-            urgency_score = min(1.0, r["urgency"] / 3.0) if r["urgency"] else 0.5
-
-            regions.append({
-                "region": region,
-                "lat": lat,
-                "lng": lng,
-                "news_count": r["cnt"],
-                "ai_brief": f"{region} 区域有 {r['cnt']} 条新闻，重点事件请查看详情",
-                "urgency_score": urgency_score,
-                "hour_bucket": int(time.time()) // 3600 * 3600,
-                "hour_label": _hour_label(int(time.time()) // 3600 * 3600),
-                "top_events": top_events,
-                "computed_by": "realtime",
-            })
-
-        return jsonify({"regions": regions, "source": "realtime"})
-    finally:
-        db.close()
-
-
 # ── API: Timeline Narrative（时间线因果链 + AI 叙事）─────────
 
 @app.route("/api/timeline_narrative")
@@ -928,10 +844,6 @@ def index():
 @app.route("/analytics")
 def analytics():
     return send_from_directory(WEB_DIR, "analytics.html")
-
-@app.route("/map")
-def map_page():
-    return send_from_directory(WEB_DIR, "map.html")
 
 @app.route("/timeline")
 def timeline_page():
@@ -1444,7 +1356,6 @@ if __name__ == "__main__":
     _free_port(PORT)
     print(f"Dashboard:  http://localhost:{PORT}")
     print(f"Analytics:  http://localhost:{PORT}/analytics")
-    print(f"Map:        http://localhost:{PORT}/map")
     print(f"Timeline:   http://localhost:{PORT}/timeline")
     print(f"Graph:      http://localhost:{PORT}/graph")
     print(f"Backup:     http://localhost:{PORT}/backup")

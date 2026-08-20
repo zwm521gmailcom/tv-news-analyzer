@@ -25,9 +25,7 @@
 
 ![Timeline](docs/screenshots/03-timeline.png)
 
-### 🗺️ 全球事件地图
-
-![Map](docs/screenshots/04-map.png)
+### 🗺️ ~~全球事件地图~~（v1.1.1 移除）
 
 ### 🕸️ 关系图谱
 
@@ -75,7 +73,6 @@
 | 🏠 `/` | 新闻看板（实时过滤 + 全文弹窗） |
 | 📊 `/analytics` | 麦肯锡风格数据分析（时间分布/来源/市场占比） |
 | 🕒 `/timeline` | **AI 洞察页**（4 周期 tab + 全局叙事 + 跨事件关联网络） |
-| 🗺️ `/map` | 全球事件地图（地理分布） |
 | 🕸️ `/graph` | 关系图谱（事件/市场/标的） |
 | 🌀 `/graph3d` | 3D 图谱（1404 节点 / 723 边） |
 | 🛠️ `/system` | 系统总览 + **AI 配置 + 多周期洞察状态** |
@@ -161,7 +158,6 @@ chmod +x tvnews.sh
 | http://localhost:5888/ | 新闻看板（暗色风格 + 全文弹窗） |
 | http://localhost:5888/analytics | 数据分析页（麦肯锡风格） |
 | http://localhost:5888/timeline | **AI 洞察**（4 周期 tab + 全局叙事 + 跨事件网络） |
-| http://localhost:5888/map | 地图页（地理分布） |
 | http://localhost:5888/graph | 关系图谱 |
 | http://localhost:5888/graph3d | 3D 图谱 |
 | http://localhost:5888/system | 系统总览 + AI 配置 + 多周期状态 |
@@ -215,7 +211,7 @@ tv-news-analyzer/
 ├── db/                         # models / database（init_db 幂等迁移） / repository
 ├── pipeline/                   # orchestrator / scheduler / global_narrative / period_insights
 ├── display/console.py          # rich 终端输出
-├── web/                        # Flask API + 9 个页面（index/analytics/timeline/map/graph/graph3d/system/backup/config_backfill/history）
+├── web/                        # Flask API + 9 个页面（index/analytics/timeline/graph/graph3d/system/backup/config_backfill/history）
 │
 └── scripts/
     ├── init.sh                 # 幂等初始化
@@ -368,7 +364,6 @@ Flask (port 5888)
     ├── /                           看板
     ├── /analytics                  分析
     ├── /timeline                   AI 洞察（4 周期 + 全局叙事）
-    ├── /map                        地图
     ├── /graph                      关系图
     ├── /graph3d                    3D
     ├── /system                     系统总览 + AI 配置

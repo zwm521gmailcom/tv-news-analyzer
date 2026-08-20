@@ -27,7 +27,6 @@ if (typeof window.I18N === 'undefined') {
     { href: '/',       key: 'home' },
     { href: '/analytics', key: 'analytics' },
     { href: '/timeline',  key: 'timeline' },
-    { href: '/map',       key: 'map' },
     { href: '/graph',     key: 'graph' },
     { href: '/graph3d',   key: 'graph3d' },
     { href: '/system',  key: 'system' },

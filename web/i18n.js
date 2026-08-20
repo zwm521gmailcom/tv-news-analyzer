@@ -4,7 +4,7 @@
 (function () {
   const DICT = {
     'zh-Hans': {
-      nav:    { home: '看板', analytics: '分析', timeline: '洞察', map: '地图', graph: '关系图', graph3d: '3D 图谱', system: '系统', backup: '备份', history: '历史' },
+      nav:    { home: '看板', analytics: '分析', timeline: '洞察', graph: '关系图', graph3d: '3D 图谱', system: '系统', backup: '备份', history: '历史' },
       live:   'LIVE',
       refresh: '↻ 刷新',
       refresh_mode: { auto: '自动', manual: '手动', switch_to: '切换为', mode_label: '刷新模式' },
@@ -133,7 +133,7 @@
       }
     },
     'en': {
-      nav:    { home: 'Dashboard', analytics: 'Analytics', timeline: 'Insights', map: 'Map', graph: 'Graph', graph3d: '3D Graph', system: 'System', backup: 'Backup', history: 'History' },
+      nav:    { home: 'Dashboard', analytics: 'Analytics', timeline: 'Insights', graph: 'Graph', graph3d: '3D Graph', system: 'System', backup: 'Backup', history: 'History' },
       live:   'LIVE',
       refresh: '↻ Refresh',
       refresh_mode: { auto: 'Auto', manual: 'Manual', switch_to: 'Switch to', mode_label: 'Refresh mode' },
