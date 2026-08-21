@@ -44,12 +44,12 @@ PERIODS = {
 }
 
 # 每个周期 prompt 强度不同（summary 字数严格控制，防止 M3 写超长文）
-# 主题/多空板块数量已经按用户要求增加（v2）
+# 主题/多空板块数量已经按用户要求增加（v2 → v1.1.2 统一 5+5）
 PERIOD_CONFIG = {
-    "daily":   {"summary_words": 200,  "themes_n": 5,  "bull_n": 3, "bear_n": 3, "news_text_limit": 30},
-    "3day":    {"summary_words": 300,  "themes_n": 7,  "bull_n": 4, "bear_n": 4, "news_text_limit": 50},
+    "daily":   {"summary_words": 200,  "themes_n": 5,  "bull_n": 5, "bear_n": 5, "news_text_limit": 30},
+    "3day":    {"summary_words": 300,  "themes_n": 7,  "bull_n": 5, "bear_n": 5, "news_text_limit": 50},
     "weekly":  {"summary_words": 500,  "themes_n": 8,  "bull_n": 5, "bear_n": 5, "news_text_limit": 70},
-    "monthly": {"summary_words": 700,  "themes_n": 10, "bull_n": 6, "bear_n": 6, "news_text_limit": 90},
+    "monthly": {"summary_words": 700,  "themes_n": 10, "bull_n": 5, "bear_n": 5, "news_text_limit": 90},
 }
 
 # 纯同周期历史 context 策略（v3）：每个周期只看前 N 个同 period 历史
